@@ -1,0 +1,19 @@
+# Exclude local build artifacts
+node_modules
+frontend/node_modules
+backend/node_modules
+frontend/dist
+
+# Exclude local Docker/Manual setup files
+docker-compose.yml
+docker-compose.prod.yml
+Caddyfile
+.env
+
+# Exclude the Printer Bridge (this stays local at the shop)
+printer-bridge/
+
+# Exclude miscellaneous
+.git
+.DS_Store
+*.log

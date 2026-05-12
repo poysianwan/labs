@@ -1,0 +1,46 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: labs_burger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend/src:/app/src
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/labs_burger
+      JWT_SECRET: change_this_in_production
+      NODE_ENV: development
+      PORT: 3001
+      FRONTEND_URL: http://localhost:5173
+    command: npm run dev
+    depends_on:
+      - db
+
+  printer-bridge:
+    build:
+      context: ./printer-bridge
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      PRINTER_INTERFACE: tcp://192.168.1.100:9100
+
+volumes:
+  postgres_data:

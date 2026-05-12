@@ -1,0 +1,53 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: labs_burger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d labs_burger"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/labs_burger
+      JWT_SECRET: ${JWT_SECRET:-change_this_to_a_long_random_string}
+      NODE_ENV: production
+      PORT: 3001
+      FRONTEND_URL: http://localhost:8080
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Frontend is usually served by Nginx or Caddy in production
+  # but here we'll define a Caddy service to handle both reverse proxy and static files
+  proxy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./frontend/dist:/var/www/html
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

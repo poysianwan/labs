@@ -1,0 +1,34 @@
+{
+    email your-email@example.com
+}
+
+# Replace with your actual domain name once you have one
+# For local testing, you can use ":80"
+:80 {
+    # Proxy API requests to the backend service (must be first)
+    handle /api/* {
+        reverse_proxy backend:3001
+    }
+
+    # Static files from frontend/dist + React Router fallback
+    handle {
+        root * /var/www/html
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Security Headers
+    header {
+        # Enable HSTS
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Prevent Clickjacking
+        X-Frame-Options "SAMEORIGIN"
+        # Prevent Content-Type Sniffing
+        X-Content-Type-Options "nosniff"
+        # Referrer Policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Compression
+    encode gzip zstd
+}
