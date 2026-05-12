@@ -1,4 +1,4 @@
-const CLOUD_BASE = 'https://labs-pos.onrender.com';
+const CLOUD_BASE = 'https://labs-pos-backend.onrender.com';
 const BASE = CLOUD_BASE + '/api'
 
 let _token = null
