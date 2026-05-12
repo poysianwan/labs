@@ -43,6 +43,8 @@ export const api = {
   deleteProduct: (id) => fetch(`${BASE}/inventory/products/${id}`, { method: 'DELETE', headers: headers() }).then(handle),
   getRecipe: (id) => fetch(`${BASE}/inventory/products/${id}/recipe`, { headers: headers() }).then(handle),
   updateRecipe: (id, ingredients) => fetch(`${BASE}/inventory/products/${id}/recipe`, { method: 'PUT', headers: headers(), body: JSON.stringify({ ingredients }) }).then(handle),
+  getComboItems: (id) => fetch(`${BASE}/inventory/products/${id}/combo-items`, { headers: headers() }).then(handle),
+  updateComboItems: (id, items) => fetch(`${BASE}/inventory/products/${id}/combo-items`, { method: 'PUT', headers: headers(), body: JSON.stringify({ items }) }).then(handle),
   getCategories: () => fetch(`${BASE}/inventory/categories`, { headers: headers() }).then(handle),
 
   // Reports & shifts

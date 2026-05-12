@@ -171,7 +171,16 @@ const migrations = [
   `ALTER TABLE cash_drawer_logs ALTER COLUMN shift_id DROP NOT NULL`,
 
   // 019 - add is_reverted to audit_logs
-  `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS is_reverted BOOLEAN DEFAULT false`
+  `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS is_reverted BOOLEAN DEFAULT false`,
+
+  // 020 - combo items table (products composed of other products)
+  `CREATE TABLE IF NOT EXISTS combo_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    combo_id UUID NOT NULL REFERENCES products(id),
+    product_id UUID NOT NULL REFERENCES products(id),
+    quantity INT NOT NULL DEFAULT 1,
+    UNIQUE(combo_id, product_id)
+  )`
 ]
 
 const seed = async () => {
@@ -240,6 +249,16 @@ const seed = async () => {
   await query(`INSERT INTO users (id, name, pin_hash, role) VALUES
     ('cccc0001-0000-0000-0000-000000000000', 'Owner', '$2b$10$lyEYQtzfdot4G97S55nDdOJnCxltcIM5knea6pBGQtFlWuiPn48MO', 'admin'),
     ('cccc0002-0000-0000-0000-000000000000', 'Cashier 1', '$2b$10$pymzlDgza1dNJQtOKzXDxOLTaNkHh40GQ0FW6ESbFkbQgh67o/gX.', 'cashier')
+    ON CONFLICT DO NOTHING`)
+  
+  // Seed combo items (Classic Combo = Classic Burger + Fries + Coke)
+  await query(`INSERT INTO combo_items (combo_id, product_id, quantity) VALUES
+    ('bbbb0004-0000-0000-0000-000000000000', 'bbbb0001-0000-0000-0000-000000000000', 1),
+    ('bbbb0004-0000-0000-0000-000000000000', 'bbbb0008-0000-0000-0000-000000000000', 1),
+    ('bbbb0004-0000-0000-0000-000000000000', 'bbbb0006-0000-0000-0000-000000000000', 1),
+    ('bbbb0005-0000-0000-0000-000000000000', 'bbbb0002-0000-0000-0000-000000000000', 1),
+    ('bbbb0005-0000-0000-0000-000000000000', 'bbbb0008-0000-0000-0000-000000000000', 1),
+    ('bbbb0005-0000-0000-0000-000000000000', 'bbbb0006-0000-0000-0000-000000000000', 1)
     ON CONFLICT DO NOTHING`)
 
   console.log('✅ Seed data inserted')

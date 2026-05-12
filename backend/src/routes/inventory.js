@@ -265,6 +265,40 @@ router.delete('/products/:id', authenticate, requireAdmin, async (req, res) => {
   }
 })
 
+// GET /api/products/:id/combo-items
+router.get('/products/:id/combo-items', authenticate, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `SELECT ci.*, p.name AS product_name, p.price FROM combo_items ci
+       JOIN products p ON p.id = ci.product_id
+       WHERE ci.combo_id = $1`, [req.params.id]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR' })
+  }
+})
+
+// PUT /api/products/:id/combo-items
+router.put('/products/:id/combo-items', authenticate, requireAdmin, async (req, res) => {
+  const { items } = req.body // [{ product_id, quantity }]
+  try {
+    await transaction(async (client) => {
+      await client.query('DELETE FROM combo_items WHERE combo_id = $1', [req.params.id])
+      for (const item of items) {
+        await client.query(
+          `INSERT INTO combo_items (combo_id, product_id, quantity)
+           VALUES ($1, $2, $3)`,
+          [req.params.id, item.product_id, item.quantity]
+        )
+      }
+    })
+    res.json({ success: true })
+  } catch (err) {
+    res.status(500).json({ error: 'SERVER_ERROR' })
+  }
+})
+
 // GET /api/categories — full list
 router.get('/categories', authenticate, async (req, res) => {
   try {

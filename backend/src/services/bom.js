@@ -5,8 +5,34 @@
  */
 
 export const deductStock = async (client, items, orderId) => {
-  // Gather all product IDs in the order
-  const productIds = items.map(i => i.product_id)
+  // 1. Expand combos into sub-products
+  const { rows: comboItems } = await client.query(
+    `SELECT combo_id, product_id, quantity FROM combo_items WHERE combo_id = ANY($1)`,
+    [items.map(i => i.product_id)]
+  )
+
+  const finalItems = []
+  for (const item of items) {
+    const subProducts = comboItems.filter(ci => ci.combo_id === item.product_id)
+    if (subProducts.length > 0) {
+      for (const sp of subProducts) {
+        finalItems.push({ product_id: sp.product_id, quantity: sp.quantity * item.quantity })
+      }
+    } else {
+      finalItems.push(item)
+    }
+  }
+
+  // 2. Group by product_id to handle duplicates
+  const groupedItems = new Map()
+  for (const item of finalItems) {
+    const existing = groupedItems.get(item.product_id) || 0
+    groupedItems.set(item.product_id, existing + item.quantity)
+  }
+  const processedItems = Array.from(groupedItems, ([product_id, quantity]) => ({ product_id, quantity }))
+
+  // 3. Gather all product IDs to fetch recipes
+  const productIds = processedItems.map(i => i.product_id)
 
   // Fetch all recipes for these products in one query
   const { rows: recipes } = await client.query(
@@ -23,7 +49,7 @@ export const deductStock = async (client, items, orderId) => {
 
   // Build deduction map: ingredient_id → total quantity to deduct
   const deductionMap = new Map()
-  for (const item of items) {
+  for (const item of processedItems) {
     const itemRecipes = recipes.filter(r => r.product_id === item.product_id)
     for (const recipe of itemRecipes) {
       const needed = recipe.quantity_used * item.quantity

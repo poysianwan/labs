@@ -134,6 +134,93 @@ function RecipeEditor({ product, onClose }) {
   )
 }
 
+function ComboEditor({ product, onClose }) {
+  const [comboItems, setComboItems] = useState([])
+  const [availableProducts, setAvailableProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const load = async () => {
+      const [items, prods] = await Promise.all([api.getComboItems(product.id), api.getProducts()])
+      setComboItems(items)
+      // Filter out self and other combos to prevent circular dependencies
+      setAvailableProducts(prods.filter(p => p.id !== product.id && !p.is_combo))
+      setLoading(false)
+    }
+    load()
+  }, [product.id])
+
+  const updateQty = (productId, qty) => {
+    setComboItems(items => items.map(row => row.product_id === productId ? { ...row, quantity: qty } : row))
+  }
+
+  const addProduct = (productId) => {
+    if (comboItems.find(i => i.product_id === productId)) return
+    const prod = availableProducts.find(p => p.id === productId)
+    setComboItems(items => [...items, { product_id: productId, quantity: 1, product_name: prod.name }])
+  }
+
+  const removeRow = (productId) => setComboItems(items => items.filter(row => row.product_id !== productId))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.updateComboItems(product.id, comboItems.map(i => ({ product_id: i.product_id, quantity: Number(i.quantity) })))
+      onClose()
+    } catch (err) { alert('Save failed: ' + err.message) }
+    finally { setSaving(false) }
+  }
+
+  const unusedProducts = availableProducts.filter(p => !comboItems.find(i => i.product_id === p.id))
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(246,247,251,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
+      <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-xl)', padding: 32, width: 480, maxHeight: '80dvh', overflow: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--text-strong)', letterSpacing: -0.5 }}>Combo: {product.name}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, fontWeight: 500 }}>Select products included in this combo</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'var(--bg-image)', color: 'var(--text-muted)', width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconX size={14} /></button>
+        </div>
+        {loading ? <div style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Loading combo items...</div> : (<>
+          {comboItems.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 20, padding: 16, background: 'var(--bg-image)', borderRadius: 'var(--radius-md)' }}>No products in this combo yet.</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {comboItems.map(row => (
+              <div key={row.product_id} style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'var(--bg-image)', padding: '12px 16px', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--text-strong)' }}>{row.product_name}</div>
+                <input type="number" min="1" step="1" value={row.quantity}
+                  onChange={e => updateQty(row.product_id, e.target.value)}
+                  style={{ width: 80, background: 'var(--bg-panel)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '8px 12px', color: 'var(--text-strong)', fontSize: 14, textAlign: 'right', fontWeight: 600 }} />
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', minWidth: 32, fontWeight: 500 }}>qty</div>
+                <button onClick={() => removeRow(row.product_id)} style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.1)', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IconX size={12} /></button>
+              </div>
+            ))}
+          </div>
+
+          {unusedProducts.length > 0 && (
+            <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px dashed var(--border-light)' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700 }}>Add Product to Combo</div>
+              <select onChange={e => { if (e.target.value) addProduct(e.target.value); e.target.value = '' }}
+                style={{ width: '100%', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-strong)', fontSize: 14, fontWeight: 500 }}>
+                <option value="">Select product to add...</option>
+                {unusedProducts.map(p => <option key={p.id} value={p.id}>{p.name} (₱{p.price})</option>)}
+              </select>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
+            <button onClick={onClose} style={{ flex: 1, padding: '14px', background: 'var(--bg-image)', color: 'var(--text-muted)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600 }}>Cancel</button>
+            <button onClick={save} disabled={saving} style={{ flex: 2, padding: '14px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 700 }}>
+              {saving ? 'Saving...' : 'Save Combo'}
+            </button>
+          </div>
+        </>)}
+      </div>
+    </div>
+  )
+}
+
 function IngredientEditor({ ingredient, onClose }) {
   const [name, setName] = useState(ingredient?.name || '')
   const [unit, setUnit] = useState(ingredient?.unit || 'pcs')
@@ -261,6 +348,7 @@ export default function InventoryPanel() {
   const [restockQty, setRestockQty] = useState('')
   const [restockNote, setRestockNote] = useState('')
   const [editingRecipe, setEditingRecipe] = useState(null)
+  const [editingCombo, setEditingCombo] = useState(null)
   const [editingProduct, setEditingProduct] = useState(null)
   const [showProductModal, setShowProductModal] = useState(false)
   const [editingIngredient, setEditingIngredient] = useState(null)
@@ -453,9 +541,9 @@ export default function InventoryPanel() {
                     <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-strong)', letterSpacing: -0.5 }}>{p.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{p.category_name}</div>
                   </div>
-                  <button onClick={() => setEditingRecipe(p)}
+                  <button onClick={() => p.is_combo ? setEditingCombo(p) : setEditingRecipe(p)}
                     style={{ width: '100%', padding: '12px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', border: 'none', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
-                    Configure Recipe
+                    {p.is_combo ? 'Configure Combo' : 'Configure Recipe'}
                   </button>
                 </div>
               ))}
@@ -500,6 +588,9 @@ export default function InventoryPanel() {
 
       {/* Recipe editor modal */}
       {editingRecipe && <RecipeEditor product={editingRecipe} onClose={() => { setEditingRecipe(null); loadProducts() }} />}
+
+      {/* Combo editor modal */}
+      {editingCombo && <ComboEditor product={editingCombo} onClose={() => { setEditingCombo(null); loadProducts() }} />}
 
       {/* Product editor modal */}
       {showProductModal && (
