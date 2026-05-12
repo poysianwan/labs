@@ -168,7 +168,10 @@ const migrations = [
   )`,
 
   // 018 - allow standalone cash withdrawals (no shift required)
-  `ALTER TABLE cash_drawer_logs ALTER COLUMN shift_id DROP NOT NULL`
+  `ALTER TABLE cash_drawer_logs ALTER COLUMN shift_id DROP NOT NULL`,
+
+  // 019 - add is_reverted to audit_logs
+  `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS is_reverted BOOLEAN DEFAULT false`
 ]
 
 const seed = async () => {
