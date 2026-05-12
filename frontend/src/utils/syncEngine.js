@@ -12,7 +12,7 @@ export const addOnlineListener = (fn) => {
 const notifyOnline = (v) => onlineListeners.forEach(fn => fn(v))
 
 const checkOnline = async () => {
-  try { await fetch('/health', { method: 'HEAD', cache: 'no-store' }); return true }
+  try { await api.checkHealth(); return true }
   catch { return false }
 }
 

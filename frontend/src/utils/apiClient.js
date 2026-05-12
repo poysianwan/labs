@@ -61,7 +61,7 @@ export const api = {
   createUser: (data) => fetch(`${BASE}/users`, { method: 'POST', headers: headers(), body: JSON.stringify(data) }).then(handle),
   updateUser: (id, data) => fetch(`${BASE}/users/${id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(data) }).then(handle),
   deleteUser: (id) => fetch(`${BASE}/users/${id}`, { method: 'DELETE', headers: headers() }).then(handle),
-  
+
   // Activity Logs
   getActivityLogs: (page = 1) => fetch(`${BASE}/reports/activity-logs?page=${page}`, { headers: headers() }).then(handle),
   revertActivityLog: (id) => fetch(`${BASE}/reports/activity-logs/${id}/revert`, { method: 'POST', headers: headers() }).then(handle),
