@@ -21,7 +21,8 @@ const productUpdateSchema = z.object({
   price: z.number().nonnegative().optional(),
   is_available: z.boolean().optional(),
   image_url: z.string().url().max(500).optional().nullable(),
-  category_id: z.string().min(1).optional()
+  category_id: z.string().min(1).optional(),
+  is_combo: z.boolean().optional()
 })
 
 const recipeSchema = z.object({
