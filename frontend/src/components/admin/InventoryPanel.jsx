@@ -278,9 +278,12 @@ function ProductEditor({ product, onClose }) {
   const [name, setName] = useState(product?.name || '')
   const [price, setPrice] = useState(product?.price || '')
   const [categoryId, setCategoryId] = useState(product?.category_id || '')
+  const [isCombo, setIsCombo] = useState(product?.is_combo || false)
   const [imageUrl, setImageUrl] = useState(product?.image_url || '')
   const [categories, setCategories] = useState([])
   const [saving, setSaving] = useState(false)
+
+  const COMBO_CATEGORY_ID = 'aaaa0003-0000-0000-0000-000000000000'
 
   useEffect(() => {
     api.getCategories().then(setCategories)
@@ -291,9 +294,9 @@ function ProductEditor({ product, onClose }) {
     setSaving(true)
     try {
       if (product) {
-        await api.updateProduct(product.id, { name, price: Number(price), category_id: categoryId, image_url: imageUrl })
+        await api.updateProduct(product.id, { name, price: Number(price), category_id: categoryId, image_url: imageUrl, is_combo: isCombo })
       } else {
-        await api.createProduct({ name, price: Number(price), category_id: categoryId, image_url: imageUrl })
+        await api.createProduct({ name, price: Number(price), category_id: categoryId, image_url: imageUrl, is_combo: isCombo })
       }
       onClose()
     } catch (err) { alert('Save failed: ' + err.message) }
@@ -317,12 +320,21 @@ function ProductEditor({ product, onClose }) {
           </div>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Category</label>
-            <select value={categoryId} onChange={e => setCategoryId(e.target.value)}
+            <select value={categoryId} onChange={e => {
+              const val = e.target.value
+              setCategoryId(val)
+              if (val === COMBO_CATEGORY_ID) setIsCombo(true)
+            }}
               style={{ width: '100%', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-strong)', fontSize: 14, fontWeight: 500 }}>
               <option value="">Select...</option>
               {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, background: 'var(--bg-image)', padding: '12px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
+          <input type="checkbox" id="isCombo" checked={isCombo} onChange={e => setIsCombo(e.target.checked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
+          <label htmlFor="isCombo" style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-strong)', cursor: 'pointer' }}>Is this a Combo? <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 12 }}>(Build it using other products)</span></label>
         </div>
 
         <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Image URL (Optional)</label>

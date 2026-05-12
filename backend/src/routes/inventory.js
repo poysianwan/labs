@@ -169,9 +169,10 @@ router.put('/products/:id', authenticate, requireAdmin, validate(productUpdateSc
         name = COALESCE($1, name),
         price = COALESCE($2, price),
         is_available = COALESCE($3, is_available),
-        image_url = COALESCE($4, image_url)
-       WHERE id = $5 RETURNING *`,
-      [name, price, is_available, image_url, req.params.id]
+        image_url = COALESCE($4, image_url),
+        is_combo = COALESCE($5, is_combo)
+       WHERE id = $6 RETURNING *`,
+      [name, price, is_available, image_url, req.body.is_combo, req.params.id]
     )
 
     await query(
@@ -223,13 +224,13 @@ router.put('/products/:id/recipe', authenticate, requireAdmin, validate(recipeSc
 
 // POST /api/products — create product
 router.post('/products', authenticate, requireAdmin, async (req, res) => {
-  const { name, price, category_id, is_available = true, image_url } = req.body
+  const { name, price, category_id, is_available = true, is_combo = false, image_url } = req.body
   if (!name || !price || !category_id) return res.status(400).json({ error: 'VALIDATION_ERROR' })
   try {
     const { rows } = await query(
-      `INSERT INTO products (name, price, category_id, is_available, image_url)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, price, category_id, is_available, image_url]
+      `INSERT INTO products (name, price, category_id, is_available, is_combo, image_url)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [name, price, category_id, is_available, is_combo, image_url]
     )
     await query(
       `INSERT INTO audit_logs (user_id, action, table_name, record_id, new_value)
