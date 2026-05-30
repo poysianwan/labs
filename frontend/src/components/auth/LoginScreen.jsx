@@ -6,10 +6,20 @@ import { IconBackspace, IconCheck } from '../ui/Icons.jsx'
 
 const KEYS = ['1','2','3','4','5','6','7','8','9','←','0','✓']
 
+const APP_VERSION = '1.0.1'
+
 const hashPin = async (pin) => {
   const data = new TextEncoder().encode(pin)
   const digest = await crypto.subtle.digest('SHA-256', data)
   return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+const readOfflineLogins = async () => {
+  const logins = await getAppState('offline_logins')
+  if (Array.isArray(logins)) return logins
+
+  const legacyLogin = await getAppState('offline_login')
+  return legacyLogin ? [legacyLogin] : []
 }
 
 export default function LoginScreen() {
@@ -42,11 +52,21 @@ export default function LoginScreen() {
           pin_hash: await hashPin(pin),
           cached_at: new Date().toISOString()
         })
+        {
+          const pinHash = await hashPin(pin)
+          const offlineLogins = await readOfflineLogins()
+          const nextOfflineLogins = [
+            { user, token, pin_hash: pinHash, cached_at: new Date().toISOString() },
+            ...offlineLogins.filter(entry => entry.pin_hash !== pinHash)
+          ].slice(0, 20)
+          await setAppState('offline_logins', nextOfflineLogins)
+        }
         login(user, token)
       } catch (err) {
         if (err.message !== 'INVALID_PIN') {
-          const cachedLogin = await getAppState('offline_login')
-          if (cachedLogin?.pin_hash === await hashPin(pin)) {
+          const pinHash = await hashPin(pin)
+          const cachedLogin = (await readOfflineLogins()).find(entry => entry.pin_hash === pinHash)
+          if (cachedLogin) {
             setToken(cachedLogin.token)
             login(cachedLogin.user, cachedLogin.token)
             return
@@ -139,6 +159,22 @@ export default function LoginScreen() {
           Download Android APK
         </a>
       )}
+
+      <div
+        style={{
+          position: 'fixed',
+          right: 'calc(14px + env(safe-area-inset-right))',
+          bottom: 'calc(10px + env(safe-area-inset-bottom))',
+          color: 'var(--text-faint)',
+          fontSize: 10,
+          fontWeight: 800,
+          letterSpacing: 0.6,
+          textTransform: 'uppercase',
+          pointerEvents: 'none'
+        }}
+      >
+        v{APP_VERSION}
+      </div>
     </div>
   )
 }
