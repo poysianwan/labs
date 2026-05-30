@@ -9,6 +9,12 @@ import { IconCheck, IconX } from '../ui/Icons.jsx'
 const NUMPAD = ['1','2','3','4','5','6','7','8','9','·','0','←']
 const QUICK_CASH = [10,20,50,100,200,500]
 
+const isNetworkError = (err) => !err?.error && (
+  err?.message === 'Failed to fetch' ||
+  err?.name === 'TypeError' ||
+  err?.status === undefined
+)
+
 export default function PaymentModal({ total, items, diningType, shiftId, onClose, onSuccess }) {
   const [method, setMethod] = useState('cash')
   const [amountStr, setAmountStr] = useState('')
@@ -121,6 +127,8 @@ export default function PaymentModal({ total, items, diningType, shiftId, onClos
           await deleteLocalOrder(orderId)
           setError(`Combo not configured: ${err.product_name || 'selected combo'}. Add combo items in Inventory before selling it.`)
           setLoading(false); return
+        } else if (isNetworkError(err)) {
+          // The order is already queued locally. Keep the cashier flow identical.
         } else {
           if (hasComboItem) await deleteLocalOrder(orderId)
           setError(hasComboItem
@@ -305,7 +313,7 @@ export default function PaymentModal({ total, items, diningType, shiftId, onClos
             color:canPay?'var(--bg-panel)':'var(--text-muted)',
             borderRadius:'var(--radius-lg)'
           }}>
-            {loading?'Processing...':isOnline?'Confirm Payment':'Save Offline'}
+            {loading?'Processing...':'Confirm Payment'}
           </button>
         </div>
 

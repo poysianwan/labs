@@ -5,16 +5,16 @@ import { getRecentOrders } from '../../db/index.js'
 
 const normalizeLocalOrder = (order) => {
   const total = (order.items || []).reduce((sum, item) => sum + (Number(item.unit_price) * Number(item.quantity)), 0)
-  const paymentMethod = order.payments?.length > 1 ? 'split' : order.payments?.[0]?.method || 'offline'
+  const paymentMethod = order.payments?.length > 1 ? 'split' : order.payments?.[0]?.method || 'cash'
 
   return {
     id: order.id,
-    order_number: order.synced ? 'Synced' : 'Syncing',
+    order_number: order.order_number || `LB-${String(new Date(order.created_at).getTime()).slice(-4)}`,
     status: 'completed',
     dining_type: order.dining_type || 'takeout',
     total,
     created_at: order.created_at,
-    cashier: 'Offline',
+    cashier: order.cashier || 'Cashier',
     payment_method: paymentMethod,
     isLocal: true
   }
@@ -184,7 +184,7 @@ export default function OrdersPanel() {
         .filter(order => !order.synced && localDateInputValue(new Date(order.created_at)) === date)
         .map(normalizeLocalOrder)
       setOrders(unsyncedLocal)
-      setError(err.status === 401 ? 'Session expired. Log out and sign in again on localhost.' : err.message || 'Unable to load orders')
+      setError(err.status === 401 ? 'Session expired. Log out and sign in again on localhost.' : '')
     }
     finally { setLoading(false) }
   }, [date])

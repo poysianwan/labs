@@ -8,16 +8,16 @@ import { getRecentOrders } from '../../db/index.js'
 
 const normalizeLocalOrder = (order, user) => {
   const total = (order.items || []).reduce((sum, item) => sum + (Number(item.unit_price) * Number(item.quantity)), 0)
-  const paymentMethod = order.payments?.length > 1 ? 'split' : order.payments?.[0]?.method || 'offline'
+  const paymentMethod = order.payments?.length > 1 ? 'split' : order.payments?.[0]?.method || 'cash'
 
   return {
     id: order.id,
-    order_number: order.synced ? 'Synced' : 'Syncing',
+    order_number: order.order_number || `LB-${String(new Date(order.created_at).getTime()).slice(-4)}`,
     status: 'completed',
     dining_type: order.dining_type || 'takeout',
     total,
     created_at: order.created_at,
-    cashier: user?.name || 'Offline',
+    cashier: user?.name || 'Cashier',
     payment_method: paymentMethod,
     isLocal: true
   }
@@ -288,7 +288,7 @@ export default function OrdersPanel() {
           .filter(order => !order.synced && localDateInputValue(new Date(order.created_at)) === date)
           .map(order => normalizeLocalOrder(order, user))
         setOrders(unsyncedLocal)
-        setError(err.status === 401 ? 'Session expired. Log out and sign in again on localhost.' : err.message || 'Unable to load orders')
+        setError(err.status === 401 ? 'Session expired. Log out and sign in again on localhost.' : '')
       }
       finally { setLoading(false) }
     }
@@ -383,7 +383,7 @@ export default function OrdersPanel() {
                   <button onClick={() => setViewingOrder(order.id)}
                     disabled={order.isLocal}
                     style={{ flex: 1, padding: '10px', background: 'var(--bg-image)', color: 'var(--text-strong)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
-                    {order.isLocal ? 'Saved Offline' : 'View Details'}
+                    View Details
                   </button>
                   {!isVoided ? (
                     <button onClick={() => setVoidingOrder(order)}
