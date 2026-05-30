@@ -11,6 +11,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const login = useAuthStore(s => s.login)
+  const showApkDownload = typeof navigator === 'undefined' || !/(Macintosh|Mac OS X|iPhone|iPad|iPod)/i.test(navigator.userAgent)
 
   const handleKey = async (key) => {
     if (loading) return
@@ -92,28 +93,30 @@ export default function LoginScreen() {
 
       <div style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: 1, fontWeight: 500 }}>ENTER STAFF PIN</div>
 
-      <a
-        href="/downloads/labs-burger-pos-debug.apk"
-        download
-        style={{
-          position: 'fixed',
-          left: '50%',
-          bottom: 'calc(14px + env(safe-area-inset-bottom))',
-          transform: 'translateX(-50%)',
-          color: 'var(--text-muted)',
-          background: 'rgba(255,255,255,0.82)',
-          border: '1px solid var(--border-light)',
-          borderRadius: 'var(--radius-pill)',
-          padding: '8px 12px',
-          fontSize: 11,
-          fontWeight: 800,
-          textDecoration: 'none',
-          boxShadow: 'var(--shadow-sm)',
-          whiteSpace: 'nowrap'
-        }}
-      >
-        Download Android APK
-      </a>
+      {showApkDownload && (
+        <a
+          href="/downloads/labs-burger-pos-debug.apk"
+          download
+          style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: 'calc(14px + env(safe-area-inset-bottom))',
+            transform: 'translateX(-50%)',
+            color: 'var(--text-muted)',
+            background: 'rgba(255,255,255,0.82)',
+            border: '1px solid var(--border-light)',
+            borderRadius: 'var(--radius-pill)',
+            padding: '8px 12px',
+            fontSize: 11,
+            fontWeight: 800,
+            textDecoration: 'none',
+            boxShadow: 'var(--shadow-sm)',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          Download Android APK
+        </a>
+      )}
     </div>
   )
 }
