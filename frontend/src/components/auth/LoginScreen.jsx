@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { api, setToken } from '../../utils/apiClient.js'
 import { useAuthStore } from '../../stores/authStore.js'
-import { cacheProducts, cacheCategories, cacheIngredients, getAppState, setAppState } from '../../db/index.js'
+import { cacheDailyInventory, cacheDailyOrders, cacheProducts, cacheCategories, cacheIngredients, getAppState, setAppState } from '../../db/index.js'
+import { localDateInputValue } from '../../utils/date.js'
 import { IconBackspace, IconCheck } from '../ui/Icons.jsx'
 
 const KEYS = ['1','2','3','4','5','6','7','8','9','←','0','✓']
@@ -44,8 +45,16 @@ export default function LoginScreen() {
         await Promise.all([
           cacheProducts(snap.products),
           cacheCategories(snap.categories),
-          cacheIngredients(snap.ingredients)
+          cacheIngredients(snap.ingredients),
+          cacheDailyInventory({
+            products: snap.products,
+            categories: snap.categories,
+            ingredients: snap.ingredients
+          })
         ])
+        api.getOrders({ date: localDateInputValue() })
+          .then(orders => cacheDailyOrders(localDateInputValue(), orders))
+          .catch(() => {})
         await setAppState('offline_login', {
           user,
           token,

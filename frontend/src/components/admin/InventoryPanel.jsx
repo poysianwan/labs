@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../utils/apiClient.js'
 import { IconX, IconTrash } from '../ui/Icons.jsx'
+import {
+  cacheCategories,
+  cacheDailyInventory,
+  cacheIngredients,
+  cacheProducts,
+  getCachedDailyInventory,
+  getCategories,
+  getIngredients,
+  getProducts
+} from '../../db/index.js'
 
 function IngredientRow({ ing, onRestock, onEdit, onDelete }) {
   const pct = Math.min(100, (ing.current_stock / (ing.low_stock_alert * 4)) * 100)
@@ -470,19 +480,49 @@ export default function InventoryPanel() {
   const [saving, setSaving] = useState(false)
 
   const loadIngredients = useCallback(async () => {
-    try { setIngredients(await api.getIngredients()) }
-    catch (err) { console.error(err) }
+    try {
+      const freshIngredients = await api.getIngredients()
+      setIngredients(freshIngredients)
+      await cacheIngredients(freshIngredients)
+      return freshIngredients
+    }
+    catch (err) {
+      const daily = await getCachedDailyInventory()
+      const cached = daily?.ingredients?.length ? daily.ingredients : await getIngredients()
+      setIngredients(cached)
+      return cached
+    }
   }, [])
 
   const loadProducts = useCallback(async () => {
-    try { setProducts(await api.getProducts()) }
-    catch (err) { console.error(err) }
+    try {
+      const freshProducts = await api.getProducts()
+      setProducts(freshProducts)
+      await cacheProducts(freshProducts)
+      return freshProducts
+    }
+    catch (err) {
+      const daily = await getCachedDailyInventory()
+      const cached = daily?.products?.length ? daily.products : await getProducts()
+      setProducts(cached)
+      return cached
+    }
   }, [])
 
   useEffect(() => {
     const init = async () => {
       setLoading(true)
-      await Promise.all([loadIngredients(), loadProducts()])
+      const [freshIngredients, freshProducts] = await Promise.all([loadIngredients(), loadProducts()])
+      try {
+        const categories = await api.getCategories()
+        await Promise.all([
+          cacheCategories(categories),
+          cacheDailyInventory({ ingredients: freshIngredients, products: freshProducts, categories })
+        ])
+      } catch {
+        const categories = await getCategories()
+        await cacheDailyInventory({ ingredients: freshIngredients, products: freshProducts, categories })
+      }
       setLoading(false)
     }
     init()

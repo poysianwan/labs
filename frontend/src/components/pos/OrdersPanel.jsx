@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../utils/apiClient.js'
 import { localDateInputValue } from '../../utils/date.js'
-import { getRecentOrders } from '../../db/index.js'
+import { cacheDailyOrders, getCachedDailyOrders, getRecentOrders } from '../../db/index.js'
 
 const normalizeLocalOrder = (order) => {
   const total = (order.items || []).reduce((sum, item) => sum + (Number(item.unit_price) * Number(item.quantity)), 0)
@@ -169,6 +169,7 @@ export default function OrdersPanel() {
         api.getOrders({ date }),
         getRecentOrders(100)
       ])
+      await cacheDailyOrders(date, remoteOrders)
       const unsyncedLocal = localOrders
         .filter(order => !order.synced && localDateInputValue(new Date(order.created_at)) === date)
         .map(normalizeLocalOrder)
@@ -179,11 +180,18 @@ export default function OrdersPanel() {
       ])
     } catch (err) {
       console.error(err)
-      const localOrders = await getRecentOrders(100)
+      const [cachedOrders, localOrders] = await Promise.all([
+        getCachedDailyOrders(date),
+        getRecentOrders(100)
+      ])
       const unsyncedLocal = localOrders
         .filter(order => !order.synced && localDateInputValue(new Date(order.created_at)) === date)
         .map(normalizeLocalOrder)
-      setOrders(unsyncedLocal)
+      const cachedIds = new Set(cachedOrders.map(order => order.id))
+      setOrders([
+        ...unsyncedLocal.filter(order => !cachedIds.has(order.id)),
+        ...cachedOrders
+      ])
       setError(err.status === 401 ? 'Session expired. Log out and sign in again on localhost.' : '')
     }
     finally { setLoading(false) }

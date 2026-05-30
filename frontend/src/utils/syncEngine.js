@@ -1,6 +1,21 @@
-import { cleanupSyncedRecords, getPendingCashEvents, getPendingOrders, getPendingSyncCount, markCashEventSynced, markOrderSynced, setAppState } from '../db/index.js'
+import {
+  cacheCategories,
+  cacheDailyInventory,
+  cacheDailyOrders,
+  cacheIngredients,
+  cacheProducts,
+  cleanupDailyCache,
+  cleanupSyncedRecords,
+  getPendingCashEvents,
+  getPendingOrders,
+  getPendingSyncCount,
+  markCashEventSynced,
+  markOrderSynced,
+  setAppState
+} from '../db/index.js'
 import { api } from './apiClient.js'
 import { useSyncStore } from '../stores/syncStore.js'
+import { localDateInputValue } from './date.js'
 
 let syncTimer = null
 let isSyncing = false
@@ -21,6 +36,26 @@ const refreshPendingCount = async () => {
 const checkOnline = async () => {
   try { await api.checkHealth(); return true }
   catch { return false }
+}
+
+export const refreshDailyOperationalCache = async () => {
+  const today = localDateInputValue()
+  const [snapshot, orders] = await Promise.all([
+    api.snapshot(),
+    api.getOrders({ date: today })
+  ])
+
+  await Promise.all([
+    cacheProducts(snapshot.products),
+    cacheCategories(snapshot.categories),
+    cacheIngredients(snapshot.ingredients),
+    cacheDailyInventory({
+      products: snapshot.products,
+      categories: snapshot.categories,
+      ingredients: snapshot.ingredients
+    }),
+    cacheDailyOrders(today, orders)
+  ])
 }
 
 export const flushQueue = async () => {
@@ -59,6 +94,8 @@ export const flushQueue = async () => {
     }
 
     await setAppState('last_sync', new Date().toISOString())
+    await refreshDailyOperationalCache().catch(() => {})
+    await cleanupDailyCache()
     await cleanupSyncedRecords(30)
     await refreshPendingCount()
   } catch (err) { console.warn('[Sync] Failed:', err.message) }
@@ -71,15 +108,34 @@ export const flushQueue = async () => {
 
 export const initSync = () => {
   if (syncTimer) return
-  window.addEventListener('online', async () => { if (await checkOnline()) { notifyOnline(true); setSyncState({ isOnline: true }); flushQueue() } })
+  window.addEventListener('online', async () => {
+    if (await checkOnline()) {
+      notifyOnline(true)
+      setSyncState({ isOnline: true })
+      refreshDailyOperationalCache().catch(() => {})
+      flushQueue()
+    }
+  })
   window.addEventListener('offline', () => { notifyOnline(false); setSyncState({ isOnline: false }) })
   syncTimer = setInterval(async () => {
+    await cleanupDailyCache()
     await refreshPendingCount()
     const o = await checkOnline()
     notifyOnline(o)
     setSyncState({ isOnline: o })
-    if (o) flushQueue()
+    if (o) {
+      refreshDailyOperationalCache().catch(() => {})
+      flushQueue()
+    }
   }, 30000)
+  cleanupDailyCache()
   refreshPendingCount()
-  checkOnline().then(async (o) => { notifyOnline(o); setSyncState({ isOnline: o }); if (o) flushQueue() })
+  checkOnline().then(async (o) => {
+    notifyOnline(o)
+    setSyncState({ isOnline: o })
+    if (o) {
+      refreshDailyOperationalCache().catch(() => {})
+      flushQueue()
+    }
+  })
 }

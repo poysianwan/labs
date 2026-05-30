@@ -1,9 +1,17 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'labs-burger-pos'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 let dbPromise = null
+
+const localDateKey = (date = new Date()) => {
+  const d = date instanceof Date ? date : new Date(date)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 export const getDB = () => {
   if (!dbPromise) {
@@ -43,10 +51,30 @@ export const getDB = () => {
           cashEvents.createIndex('synced', 'synced')
           cashEvents.createIndex('created_at', 'created_at')
         }
+
+        // Daily read cache for already-downloaded orders and stock views.
+        if (!db.objectStoreNames.contains('daily_cache')) {
+          db.createObjectStore('daily_cache', { keyPath: 'key' })
+        }
       }
     })
   }
   return dbPromise
+}
+
+export const cleanupDailyCache = async () => {
+  const db = await getDB()
+  if (!db.objectStoreNames.contains('daily_cache')) return
+
+  const today = localDateKey()
+  const tx = db.transaction('daily_cache', 'readwrite')
+  const rows = await tx.store.getAll()
+
+  for (const row of rows) {
+    if (row.date !== today) await tx.store.delete(row.key)
+  }
+
+  await tx.done
 }
 
 // Products
@@ -84,6 +112,60 @@ export const cacheIngredients = async (ingredients) => {
   await tx.store.clear()
   for (const i of ingredients) await tx.store.put(i)
   await tx.done
+}
+
+export const getIngredients = async () => {
+  const db = await getDB()
+  return db.getAll('ingredients')
+}
+
+export const cacheDailyOrders = async (date, orders) => {
+  if (date !== localDateKey()) return
+  const db = await getDB()
+  await cleanupDailyCache()
+  await db.put('daily_cache', {
+    key: `orders:${date}`,
+    type: 'orders',
+    date,
+    value: orders,
+    saved_at: new Date().toISOString()
+  })
+}
+
+export const getCachedDailyOrders = async (date) => {
+  if (date !== localDateKey()) return []
+  await cleanupDailyCache()
+  const db = await getDB()
+  const row = await db.get('daily_cache', `orders:${date}`)
+  return row?.date === localDateKey() ? row.value || [] : []
+}
+
+export const upsertCachedDailyOrder = async (date, order) => {
+  if (date !== localDateKey()) return
+  const existing = await getCachedDailyOrders(date)
+  const next = [order, ...existing.filter(row => row.id !== order.id)]
+  await cacheDailyOrders(date, next)
+}
+
+export const cacheDailyInventory = async ({ ingredients, products, categories }) => {
+  const db = await getDB()
+  const date = localDateKey()
+  await cleanupDailyCache()
+  await db.put('daily_cache', {
+    key: `inventory:${date}`,
+    type: 'inventory',
+    date,
+    value: { ingredients, products, categories },
+    saved_at: new Date().toISOString()
+  })
+}
+
+export const getCachedDailyInventory = async () => {
+  await cleanupDailyCache()
+  const db = await getDB()
+  const date = localDateKey()
+  const row = await db.get('daily_cache', `inventory:${date}`)
+  return row?.value || null
 }
 
 // Orders queue

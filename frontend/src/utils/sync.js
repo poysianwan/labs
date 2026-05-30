@@ -1,4 +1,4 @@
-import { getPendingOrders, markOrderSynced, cacheProducts, cacheCategories, cacheIngredients } from '../db/index.js'
+import { getPendingOrders, markOrderSynced, cacheProducts, cacheCategories, cacheIngredients, cacheDailyInventory, cleanupDailyCache } from '../db/index.js'
 import { api } from '../utils/api.js'
 
 let syncInProgress = false
@@ -64,6 +64,11 @@ export const refreshSnapshot = async () => {
       cacheProducts(snapshot.products),
       cacheCategories(snapshot.categories),
       cacheIngredients(snapshot.ingredients),
+      cacheDailyInventory({
+        products: snapshot.products,
+        categories: snapshot.categories,
+        ingredients: snapshot.ingredients
+      }),
     ])
     return snapshot
   } catch (err) {
@@ -97,6 +102,7 @@ export const initSyncEngine = (onStatusChange) => {
 
   // Periodic sync check every 30s
   const interval = setInterval(async () => {
+    await cleanupDailyCache()
     const online = await checkOnline()
     if (online && !isOnline) { isOnline = true; onStatusChange?.(true) }
     if (!online && isOnline) { isOnline = false; onStatusChange?.(false) }

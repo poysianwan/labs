@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { api } from '../../utils/apiClient.js'
 import { useAuthStore } from '../../stores/authStore.js'
-import { saveOrderOffline, markOrderSynced, deleteLocalOrder } from '../../db/index.js'
+import { saveOrderOffline, markOrderSynced, deleteLocalOrder, upsertCachedDailyOrder } from '../../db/index.js'
 import { useSyncStore } from '../../stores/syncStore.js'
+import { localDateInputValue } from '../../utils/date.js'
 import { IconCheck, IconX } from '../ui/Icons.jsx'
 
 const NUMPAD = ['1','2','3','4','5','6','7','8','9','·','0','←']
@@ -107,9 +108,22 @@ export default function PaymentModal({ total, items, diningType, shiftId, onClos
       payments: paymentsArr,
       created_at: now
     }
+    const orderSummary = {
+      id: orderId,
+      order_number: `LB-${String(new Date(now).getTime()).slice(-4)}`,
+      status: 'completed',
+      dining_type: diningType,
+      total,
+      created_at: now,
+      cashier: user?.name || 'Cashier',
+      cashier_name: user?.name || 'Cashier',
+      payment_method: paymentsArr.length > 1 ? 'split' : paymentsArr[0]?.method || method,
+      isLocal: true
+    }
 
     // Always save locally first
     await saveOrderOffline(orderPayload)
+    await upsertCachedDailyOrder(localDateInputValue(new Date(now)), orderSummary)
 
     // Try to sync if online
     if (isOnline) {
