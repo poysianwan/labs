@@ -1,17 +1,25 @@
 import { useState } from 'react'
 import { api, setToken } from '../../utils/apiClient.js'
 import { useAuthStore } from '../../stores/authStore.js'
-import { cacheProducts, cacheCategories, cacheIngredients } from '../../db/index.js'
+import { cacheProducts, cacheCategories, cacheIngredients, getAppState, setAppState } from '../../db/index.js'
 import { IconBackspace, IconCheck } from '../ui/Icons.jsx'
 
 const KEYS = ['1','2','3','4','5','6','7','8','9','←','0','✓']
+
+const hashPin = async (pin) => {
+  const data = new TextEncoder().encode(pin)
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('')
+}
 
 export default function LoginScreen() {
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const login = useAuthStore(s => s.login)
-  const showApkDownload = typeof navigator === 'undefined' || !/(Macintosh|Mac OS X|iPhone|iPad|iPod)/i.test(navigator.userAgent)
+  const isAppleDevice = typeof navigator !== 'undefined' && /(Macintosh|Mac OS X|iPhone|iPad|iPod)/i.test(navigator.userAgent)
+  const isNativeApp = typeof window !== 'undefined' && Boolean(window.Capacitor)
+  const showApkDownload = !isAppleDevice && !isNativeApp
 
   const handleKey = async (key) => {
     if (loading) return
@@ -28,8 +36,22 @@ export default function LoginScreen() {
           cacheCategories(snap.categories),
           cacheIngredients(snap.ingredients)
         ])
+        await setAppState('offline_login', {
+          user,
+          token,
+          pin_hash: await hashPin(pin),
+          cached_at: new Date().toISOString()
+        })
         login(user, token)
       } catch (err) {
+        if (err.message !== 'INVALID_PIN') {
+          const cachedLogin = await getAppState('offline_login')
+          if (cachedLogin?.pin_hash === await hashPin(pin)) {
+            setToken(cachedLogin.token)
+            login(cachedLogin.user, cachedLogin.token)
+            return
+          }
+        }
         setError(err.message === 'INVALID_PIN' ? 'Wrong PIN. Try again.' : 'Connection error. Check network.')
         setPin('')
       } finally { setLoading(false) }
