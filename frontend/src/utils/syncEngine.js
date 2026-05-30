@@ -1,4 +1,4 @@
-import { getPendingCashEvents, getPendingOrders, getPendingSyncCount, markCashEventSynced, markOrderSynced, setAppState } from '../db/index.js'
+import { cleanupSyncedRecords, getPendingCashEvents, getPendingOrders, getPendingSyncCount, markCashEventSynced, markOrderSynced, setAppState } from '../db/index.js'
 import { api } from './apiClient.js'
 import { useSyncStore } from '../stores/syncStore.js'
 
@@ -59,6 +59,7 @@ export const flushQueue = async () => {
     }
 
     await setAppState('last_sync', new Date().toISOString())
+    await cleanupSyncedRecords(30)
     await refreshPendingCount()
   } catch (err) { console.warn('[Sync] Failed:', err.message) }
   finally {

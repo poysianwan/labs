@@ -138,6 +138,30 @@ export const getPendingSyncCount = async () => {
   return orders.length + cashEvents.length
 }
 
+export const cleanupSyncedRecords = async (daysToKeep = 30) => {
+  const db = await getDB()
+  const cutoff = Date.now() - (daysToKeep * 24 * 60 * 60 * 1000)
+  const tx = db.transaction(['orders', 'cash_events'], 'readwrite')
+  const [orders, cashEvents] = await Promise.all([
+    tx.objectStore('orders').getAll(),
+    tx.objectStore('cash_events').getAll()
+  ])
+
+  for (const order of orders) {
+    if (order.synced === true && new Date(order.created_at).getTime() < cutoff) {
+      await tx.objectStore('orders').delete(order.id)
+    }
+  }
+
+  for (const event of cashEvents) {
+    if (event.synced === true && new Date(event.created_at).getTime() < cutoff) {
+      await tx.objectStore('cash_events').delete(event.id)
+    }
+  }
+
+  await tx.done
+}
+
 // App state
 export const setAppState = async (key, value) => {
   const db = await getDB()
