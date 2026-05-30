@@ -110,15 +110,19 @@ router.get('/shifts/:id/petty-cash', authenticate, async (req, res) => {
 
 // POST /api/reports/shifts/:id/petty-cash
 router.post('/shifts/:id/petty-cash', authenticate, async (req, res) => {
-  const { type, amount, reason } = req.body
+  const { id, type, amount, reason, created_at } = req.body
   if (!['pay_in', 'pay_out'].includes(type) || !amount || !reason) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'type, amount, and reason required' })
   }
   try {
+    if (id) {
+      const { rows: existing } = await query('SELECT * FROM cash_drawer_logs WHERE id = $1', [id])
+      if (existing.length) return res.status(200).json(existing[0])
+    }
     const { rows } = await query(
-      `INSERT INTO cash_drawer_logs (shift_id, user_id, type, amount, reason)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.params.id, req.user.id, type, amount, reason]
+      `INSERT INTO cash_drawer_logs (id, shift_id, user_id, type, amount, reason, created_at)
+       VALUES (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, COALESCE($7::timestamptz, NOW())) RETURNING *`,
+      [id || null, req.params.id, req.user.id, type, amount, reason, created_at || null]
     )
     await query(
       `INSERT INTO audit_logs (user_id, action, table_name, record_id, new_value)

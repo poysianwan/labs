@@ -1,7 +1,7 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'labs-burger-pos'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let dbPromise = null
 
@@ -35,6 +35,13 @@ export const getDB = () => {
         // App state (current shift, etc)
         if (!db.objectStoreNames.contains('app_state')) {
           db.createObjectStore('app_state', { keyPath: 'key' })
+        }
+
+        // Offline drawer events queue
+        if (!db.objectStoreNames.contains('cash_events')) {
+          const cashEvents = db.createObjectStore('cash_events', { keyPath: 'id' })
+          cashEvents.createIndex('synced', 'synced')
+          cashEvents.createIndex('created_at', 'created_at')
         }
       }
     })
@@ -106,6 +113,29 @@ export const getRecentOrders = async (limit = 50) => {
   const db = await getDB()
   const all = await db.getAll('orders')
   return all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, limit)
+}
+
+// Cash drawer event queue
+export const saveCashEventOffline = async (event) => {
+  const db = await getDB()
+  await db.put('cash_events', { ...event, synced: false })
+}
+
+export const markCashEventSynced = async (id) => {
+  const db = await getDB()
+  const event = await db.get('cash_events', id)
+  if (event) await db.put('cash_events', { ...event, synced: true })
+}
+
+export const getPendingCashEvents = async () => {
+  const db = await getDB()
+  const all = await db.getAll('cash_events')
+  return all.filter(e => e.synced === false).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+}
+
+export const getPendingSyncCount = async () => {
+  const [orders, cashEvents] = await Promise.all([getPendingOrders(), getPendingCashEvents()])
+  return orders.length + cashEvents.length
 }
 
 // App state

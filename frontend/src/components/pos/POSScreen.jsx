@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore.js'
 import { useCartStore } from '../../stores/cartStore.js'
-import { getProducts, getCategories, getAppState, setAppState } from '../../db/index.js'
+import { getProducts, getCategories, getAppState, saveCashEventOffline, setAppState } from '../../db/index.js'
 import { api } from '../../utils/apiClient.js'
 import { flushQueue } from '../../utils/syncEngine.js'
 import { useOnlineStatus } from '../../hooks/useOnlineStatus.js'
@@ -482,7 +483,15 @@ function CashWithdrawModal({ shift, onClose, onSaved }) {
     setLoading(true)
     setError('')
     try {
-      await api.logPettyCash(shift.id, 'pay_out', amountValue, reason.trim())
+      await saveCashEventOffline({
+        id: uuidv4(),
+        shift_id: shift.id,
+        type: 'pay_out',
+        amount: amountValue,
+        reason: reason.trim(),
+        created_at: new Date().toISOString()
+      })
+      await flushQueue()
       onSaved()
     } catch (err) {
       setError(err.message || 'Unable to record cash withdrawal.')

@@ -55,7 +55,7 @@ export const api = {
   startShift: (opening_cash) => fetch(`${BASE}/reports/shifts/start`, { method: 'POST', headers: headers(), body: JSON.stringify({ opening_cash }) }).then(handle),
   endShift: (id, closing_cash) => fetch(`${BASE}/reports/shifts/${id}/end`, { method: 'POST', headers: headers(), body: JSON.stringify({ closing_cash }) }).then(handle),
   getPettyCash: (id) => fetch(`${BASE}/reports/shifts/${id}/petty-cash`, { headers: headers() }).then(handle),
-  logPettyCash: (id, type, amount, reason) => fetch(`${BASE}/reports/shifts/${id}/petty-cash`, { method: 'POST', headers: headers(), body: JSON.stringify({ type, amount, reason }) }).then(handle),
+  logPettyCash: (id, type, amount, reason, extra = {}) => fetch(`${BASE}/reports/shifts/${id}/petty-cash`, { method: 'POST', headers: headers(), body: JSON.stringify({ type, amount, reason, ...extra }) }).then(handle),
   cashWithdraw: (amount, reason) => fetch(`${BASE}/reports/cash-withdraw`, { method: 'POST', headers: headers(), body: JSON.stringify({ amount, reason }) }).then(handle),
   getDashboardReport: () => fetch(`${BASE}/reports/dashboard`, { headers: headers() }).then(handle),
   getSalesCalendar: (month) => fetch(`${BASE}/reports/sales-calendar?${new URLSearchParams({ month })}`, { headers: headers() }).then(handle),
