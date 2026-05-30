@@ -216,6 +216,181 @@ router.post('/shifts/:id/end', authenticate, async (req, res) => {
   }
 })
 
+// GET /api/reports/dashboard
+router.get('/dashboard', authenticate, requireAdmin, async (req, res) => {
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })
+
+  try {
+    const [
+      todaySummary,
+      paymentMix,
+      voidSummary,
+      topProducts,
+      lowStock,
+      productHealth,
+      currentShift,
+      recentOrders,
+      cashierPerformance
+    ] = await Promise.all([
+      query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'completed') AS total_orders,
+           COALESCE(SUM(total) FILTER (WHERE status = 'completed'), 0) AS total_revenue,
+           COALESCE(AVG(total) FILTER (WHERE status = 'completed'), 0) AS avg_order_value,
+           COUNT(*) FILTER (WHERE status = 'voided') AS voided_orders,
+           COALESCE(SUM(total) FILTER (WHERE status = 'voided'), 0) AS voided_amount
+         FROM orders
+         WHERE DATE(created_at AT TIME ZONE 'Asia/Manila') = $1`,
+        [today]
+      ),
+      query(
+        `SELECT
+           COALESCE(SUM(CASE WHEN p.method = 'cash' THEN p.amount - p.change_given ELSE 0 END), 0) AS cash_revenue,
+           COALESCE(SUM(CASE WHEN p.method = 'gcash' THEN p.amount ELSE 0 END), 0) AS gcash_revenue
+         FROM payments p
+         JOIN orders o ON o.id = p.order_id
+         WHERE o.status = 'completed'
+           AND DATE(o.created_at AT TIME ZONE 'Asia/Manila') = $1`,
+        [today]
+      ),
+      query(
+        `SELECT id, order_number, total, void_reason, created_at
+         FROM orders
+         WHERE status = 'voided'
+           AND DATE(created_at AT TIME ZONE 'Asia/Manila') = $1
+         ORDER BY created_at DESC
+         LIMIT 5`,
+        [today]
+      ),
+      query(
+        `SELECT pr.name, SUM(oi.quantity) AS qty_sold, SUM(oi.quantity * oi.unit_price) AS revenue
+         FROM order_items oi
+         JOIN products pr ON pr.id = oi.product_id
+         JOIN orders o ON o.id = oi.order_id
+         WHERE o.status = 'completed'
+           AND DATE(o.created_at AT TIME ZONE 'Asia/Manila') = $1
+         GROUP BY pr.name
+         ORDER BY qty_sold DESC
+         LIMIT 5`,
+        [today]
+      ),
+      query(
+        `SELECT id, name, unit, current_stock, low_stock_alert
+         FROM ingredients
+         WHERE deleted_at IS NULL
+           AND current_stock < low_stock_alert
+         ORDER BY current_stock ASC, name
+         LIMIT 6`
+      ),
+      query(
+        `SELECT
+           COUNT(*) FILTER (WHERE deleted_at IS NULL) AS total_products,
+           COUNT(*) FILTER (WHERE deleted_at IS NULL AND is_available = false) AS unavailable_products,
+           COUNT(*) FILTER (
+             WHERE deleted_at IS NULL
+               AND is_combo = true
+               AND NOT EXISTS (SELECT 1 FROM combo_items ci WHERE ci.combo_id = products.id)
+           ) AS unconfigured_combos
+         FROM products`
+      ),
+      query(
+        `SELECT
+           s.id,
+           s.started_at,
+           s.opening_cash,
+           u.name AS cashier_name,
+           COALESCE((SELECT SUM(p.amount - p.change_given)
+             FROM orders o JOIN payments p ON p.order_id = o.id
+             WHERE o.shift_id = s.id AND o.status = 'completed' AND p.method = 'cash'), 0) AS cash_collected,
+           COALESCE((SELECT SUM(amount) FROM cash_drawer_logs WHERE shift_id = s.id AND type = 'pay_in'), 0) AS petty_in,
+           COALESCE((SELECT SUM(amount) FROM cash_drawer_logs WHERE shift_id = s.id AND type = 'pay_out'), 0) AS petty_out,
+           COALESCE((SELECT COUNT(*) FROM orders o WHERE o.shift_id = s.id AND o.status = 'completed'), 0) AS order_count
+         FROM shifts s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.ended_at IS NULL
+         ORDER BY s.started_at DESC
+         LIMIT 1`
+      ),
+      query(
+        `SELECT o.id, o.order_number, o.total, o.status, o.created_at, u.name AS cashier
+         FROM orders o
+         LEFT JOIN users u ON u.id = o.user_id
+         WHERE DATE(o.created_at AT TIME ZONE 'Asia/Manila') = $1
+         ORDER BY o.created_at DESC
+         LIMIT 6`,
+        [today]
+      ),
+      query(
+        `SELECT u.name AS cashier_name,
+                COUNT(o.id) AS total_orders,
+                COALESCE(SUM(o.total), 0) AS total_sales,
+                COALESCE(AVG(o.total), 0) AS avg_ticket
+         FROM orders o
+         JOIN users u ON u.id = o.user_id
+         WHERE o.status = 'completed'
+           AND DATE(o.created_at AT TIME ZONE 'Asia/Manila') = $1
+         GROUP BY u.name
+         ORDER BY total_sales DESC
+         LIMIT 5`,
+        [today]
+      )
+    ])
+
+    const shift = currentShift.rows[0] || null
+    const expectedCash = shift
+      ? Number(shift.opening_cash || 0) + Number(shift.cash_collected || 0) + Number(shift.petty_in || 0) - Number(shift.petty_out || 0)
+      : 0
+
+    res.json({
+      date: today,
+      summary: {
+        ...todaySummary.rows[0],
+        ...paymentMix.rows[0]
+      },
+      current_shift: shift ? { ...shift, expected_cash: expectedCash } : null,
+      low_stock: lowStock.rows,
+      product_health: productHealth.rows[0],
+      voids: {
+        count: Number(todaySummary.rows[0]?.voided_orders || 0),
+        amount: Number(todaySummary.rows[0]?.voided_amount || 0),
+        recent: voidSummary.rows
+      },
+      top_products: topProducts.rows,
+      recent_orders: recentOrders.rows,
+      cashier_performance: cashierPerformance.rows
+    })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'SERVER_ERROR' })
+  }
+})
+
+// GET /api/reports/sales-calendar?month=YYYY-MM
+router.get('/sales-calendar', authenticate, requireAdmin, async (req, res) => {
+  const requestedMonth = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : null
+  const month = requestedMonth || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }).slice(0, 7)
+
+  try {
+    const { rows } = await query(
+      `SELECT
+         TO_CHAR(DATE(o.created_at AT TIME ZONE 'Asia/Manila'), 'YYYY-MM-DD') AS date,
+         COUNT(*) FILTER (WHERE o.status = 'completed') AS orders,
+         COALESCE(SUM(o.total) FILTER (WHERE o.status = 'completed'), 0) AS revenue,
+         COUNT(*) FILTER (WHERE o.status = 'voided') AS voids
+       FROM orders o
+       WHERE TO_CHAR(DATE(o.created_at AT TIME ZONE 'Asia/Manila'), 'YYYY-MM') = $1
+       GROUP BY DATE(o.created_at AT TIME ZONE 'Asia/Manila')
+       ORDER BY date`,
+      [month]
+    )
+
+    res.json({ month, days: rows })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'SERVER_ERROR' })
+  }
+})
+
 // GET /api/reports/sales
 router.get('/sales', authenticate, requireAdmin, async (req, res) => {
   const { from, to } = req.query

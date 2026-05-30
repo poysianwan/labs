@@ -91,6 +91,11 @@ export const markOrderSynced = async (id) => {
   if (order) await db.put('orders', { ...order, synced: true })
 }
 
+export const deleteLocalOrder = async (id) => {
+  const db = await getDB()
+  await db.delete('orders', id)
+}
+
 export const getPendingOrders = async () => {
   const db = await getDB()
   const all = await db.getAll('orders')

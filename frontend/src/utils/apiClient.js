@@ -1,5 +1,5 @@
-const CLOUD_BASE = 'https://labs-pos-backend.onrender.com';
-const BASE = CLOUD_BASE + '/api'
+const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'https://labs-pos-backend.onrender.com'
+const BASE = `${API_ORIGIN}/api`
 
 let _token = null
 export const setToken = (t) => { _token = t }
@@ -12,11 +12,13 @@ const headers = () => ({
 
 const handle = async (res) => {
   const data = await res.json()
-  if (!res.ok) throw Object.assign(new Error(data.error || 'API_ERROR'), data)
+  if (!res.ok) throw Object.assign(new Error(data.error || 'API_ERROR'), data, { status: res.status })
   return data
 }
 
 export const api = {
+  checkHealth: () => fetch(`${BASE}/health`, { cache: 'no-store' }).then(handle),
+
   // Auth
   login: (pin) => fetch(`${BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) }).then(handle),
   logout: () => fetch(`${BASE}/auth/logout`, { method: 'POST', headers: headers() }).then(handle),
@@ -55,6 +57,8 @@ export const api = {
   getPettyCash: (id) => fetch(`${BASE}/reports/shifts/${id}/petty-cash`, { headers: headers() }).then(handle),
   logPettyCash: (id, type, amount, reason) => fetch(`${BASE}/reports/shifts/${id}/petty-cash`, { method: 'POST', headers: headers(), body: JSON.stringify({ type, amount, reason }) }).then(handle),
   cashWithdraw: (amount, reason) => fetch(`${BASE}/reports/cash-withdraw`, { method: 'POST', headers: headers(), body: JSON.stringify({ amount, reason }) }).then(handle),
+  getDashboardReport: () => fetch(`${BASE}/reports/dashboard`, { headers: headers() }).then(handle),
+  getSalesCalendar: (month) => fetch(`${BASE}/reports/sales-calendar?${new URLSearchParams({ month })}`, { headers: headers() }).then(handle),
   getSalesReport: (from, to) => fetch(`${BASE}/reports/sales?from=${from}&to=${to || from}`, { headers: headers() }).then(handle),
   getStockMovements: (params = {}) => fetch(`${BASE}/reports/stock-movements?${new URLSearchParams(params)}`, { headers: headers() }).then(handle),
 

@@ -1,5 +1,24 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../../utils/apiClient.js'
+import { localDateInputValue } from '../../utils/date.js'
+import { getRecentOrders } from '../../db/index.js'
+
+const normalizeLocalOrder = (order) => {
+  const total = (order.items || []).reduce((sum, item) => sum + (Number(item.unit_price) * Number(item.quantity)), 0)
+  const paymentMethod = order.payments?.length > 1 ? 'split' : order.payments?.[0]?.method || 'offline'
+
+  return {
+    id: order.id,
+    order_number: order.synced ? 'Synced' : 'Syncing',
+    status: 'completed',
+    dining_type: order.dining_type || 'takeout',
+    total,
+    created_at: order.created_at,
+    cashier: 'Offline',
+    payment_method: paymentMethod,
+    isLocal: true
+  }
+}
 
 const fmt = (n) => `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 
@@ -137,16 +156,36 @@ function VoidModal({ order, onConfirm, onCancel }) {
 export default function OrdersPanel() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(localDateInputValue())
+  const [error, setError] = useState('')
   const [voidTarget, setVoidTarget] = useState(null)
   const [filter, setFilter] = useState('all') // all | cash | gcash | voided
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
-      const result = await api.getOrders({ date })
-      setOrders(result)
-    } catch (err) { console.error(err) }
+      const [remoteOrders, localOrders] = await Promise.all([
+        api.getOrders({ date }),
+        getRecentOrders(100)
+      ])
+      const unsyncedLocal = localOrders
+        .filter(order => !order.synced && localDateInputValue(new Date(order.created_at)) === date)
+        .map(normalizeLocalOrder)
+      const remoteIds = new Set(remoteOrders.map(order => order.id))
+      setOrders([
+        ...unsyncedLocal.filter(order => !remoteIds.has(order.id)),
+        ...remoteOrders
+      ])
+    } catch (err) {
+      console.error(err)
+      const localOrders = await getRecentOrders(100)
+      const unsyncedLocal = localOrders
+        .filter(order => !order.synced && localDateInputValue(new Date(order.created_at)) === date)
+        .map(normalizeLocalOrder)
+      setOrders(unsyncedLocal)
+      setError(err.status === 401 ? 'Session expired. Log out and sign in again on localhost.' : err.message || 'Unable to load orders')
+    }
     finally { setLoading(false) }
   }, [date])
 
@@ -214,6 +253,11 @@ export default function OrdersPanel() {
       {/* Orders list */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading && <div style={{ color: '#444', fontSize: 14, padding: 20 }}>Loading orders...</div>}
+        {!loading && error && (
+          <div style={{ color: '#fca5a5', background: 'rgba(204,0,0,0.12)', border: '1px solid rgba(204,0,0,0.25)', borderRadius: 10, padding: 14, marginBottom: 12, fontSize: 13, fontWeight: 600 }}>
+            Could not load orders: {error}
+          </div>
+        )}
         {!loading && filtered.length === 0 && (
           <div style={{ textAlign: 'center', color: '#333', padding: 48 }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>🧾</div>

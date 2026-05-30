@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Labs Burger POS</string>
+    <string name="title_activity_main">Labs Burger POS</string>
+    <string name="package_name">com.labsburger.pos</string>
+    <string name="custom_url_scheme">com.labsburger.pos</string>
+</resources>

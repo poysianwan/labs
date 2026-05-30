@@ -15,6 +15,7 @@ export const useCartStore = create((set, get) => ({
         product_id: product.id,
         name: product.name,
         unit_price: product.price,
+        is_combo: Boolean(product.is_combo),
         quantity: 1,
         notes: ''
       }]})

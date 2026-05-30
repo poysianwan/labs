@@ -65,6 +65,8 @@ router.post('/orders', authenticate, async (req, res) => {
     } catch (err) {
       if (err.message === 'INSUFFICIENT_STOCK') {
         results.push({ id: order.id, status: 'error', reason: 'INSUFFICIENT_STOCK', ingredient: err.ingredient })
+      } else if (err.message === 'COMBO_NOT_CONFIGURED') {
+        results.push({ id: order.id, status: 'error', reason: 'COMBO_NOT_CONFIGURED', product_name: err.product_name })
       } else {
         results.push({ id: order.id, status: 'error', reason: err.message })
       }

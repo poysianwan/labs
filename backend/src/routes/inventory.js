@@ -20,6 +20,7 @@ const productUpdateSchema = z.object({
   name: z.string().min(1).max(150).optional(),
   price: z.number().nonnegative().optional(),
   is_available: z.boolean().optional(),
+  description: z.string().max(255).optional().nullable(),
   image_url: z.string().url().max(500).optional().nullable(),
   category_id: z.string().min(1).optional(),
   is_combo: z.boolean().optional()
@@ -160,7 +161,7 @@ router.get('/products', authenticate, async (req, res) => {
 
 // PUT /api/products/:id
 router.put('/products/:id', authenticate, requireAdmin, validate(productUpdateSchema), async (req, res) => {
-  const { name, price, is_available, image_url } = req.body
+  const { name, price, is_available, image_url, category_id, description } = req.body
   try {
     const { rows: before } = await query('SELECT * FROM products WHERE id = $1', [req.params.id])
     if (!before.length) return res.status(404).json({ error: 'NOT_FOUND' })
@@ -171,9 +172,11 @@ router.put('/products/:id', authenticate, requireAdmin, validate(productUpdateSc
         price = COALESCE($2, price),
         is_available = COALESCE($3, is_available),
         image_url = COALESCE($4, image_url),
-        is_combo = COALESCE($5, is_combo)
-       WHERE id = $6 RETURNING *`,
-      [name, price, is_available, image_url, req.body.is_combo, req.params.id]
+        is_combo = COALESCE($5, is_combo),
+        category_id = COALESCE($6, category_id),
+        description = $7
+       WHERE id = $8 RETURNING *`,
+      [name, price, is_available, image_url, req.body.is_combo, category_id, description ?? before[0].description, req.params.id]
     )
 
     await query(
@@ -225,13 +228,13 @@ router.put('/products/:id/recipe', authenticate, requireAdmin, validate(recipeSc
 
 // POST /api/products — create product
 router.post('/products', authenticate, requireAdmin, async (req, res) => {
-  const { name, price, category_id, is_available = true, is_combo = false, image_url } = req.body
+  const { name, price, category_id, is_available = true, is_combo = false, image_url, description = null } = req.body
   if (!name || !price || !category_id) return res.status(400).json({ error: 'VALIDATION_ERROR' })
   try {
     const { rows } = await query(
-      `INSERT INTO products (name, price, category_id, is_available, is_combo, image_url)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [name, price, category_id, is_available, is_combo, image_url]
+      `INSERT INTO products (name, price, category_id, is_available, is_combo, image_url, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [name, price, category_id, is_available, is_combo, image_url, description]
     )
     await query(
       `INSERT INTO audit_logs (user_id, action, table_name, record_id, new_value)

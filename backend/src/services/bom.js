@@ -5,15 +5,31 @@
  */
 
 export const deductStock = async (client, items, orderId) => {
+  const orderedProductIds = items.map(i => i.product_id)
+
+  const { rows: orderedProducts } = await client.query(
+    `SELECT id, name, is_combo FROM products WHERE id = ANY($1::uuid[])`,
+    [orderedProductIds]
+  )
+
   // 1. Expand combos into sub-products
   const { rows: comboItems } = await client.query(
-    `SELECT combo_id, product_id, quantity FROM combo_items WHERE combo_id = ANY($1)`,
-    [items.map(i => i.product_id)]
+    `SELECT combo_id, product_id, quantity FROM combo_items WHERE combo_id = ANY($1::uuid[])`,
+    [orderedProductIds]
   )
 
   const finalItems = []
   for (const item of items) {
+    const orderedProduct = orderedProducts.find(p => p.id === item.product_id)
     const subProducts = comboItems.filter(ci => ci.combo_id === item.product_id)
+
+    if (orderedProduct?.is_combo && subProducts.length === 0) {
+      const err = new Error('COMBO_NOT_CONFIGURED')
+      err.product_id = item.product_id
+      err.product_name = orderedProduct.name
+      throw err
+    }
+
     if (subProducts.length > 0) {
       for (const sp of subProducts) {
         finalItems.push({ product_id: sp.product_id, quantity: sp.quantity * item.quantity })
@@ -33,6 +49,7 @@ export const deductStock = async (client, items, orderId) => {
 
   // 3. Gather all product IDs to fetch recipes
   const productIds = processedItems.map(i => i.product_id)
+  if (productIds.length === 0) return
 
   // Fetch all recipes for these products in one query
   const { rows: recipes } = await client.query(
@@ -40,7 +57,7 @@ export const deductStock = async (client, items, orderId) => {
             i.name AS ingredient_name, i.current_stock, i.unit
      FROM product_recipes pr
      JOIN ingredients i ON i.id = pr.ingredient_id
-     WHERE pr.product_id = ANY($1)
+     WHERE pr.product_id = ANY($1::uuid[])
      FOR UPDATE`,
     [productIds]
   )

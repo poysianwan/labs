@@ -5,6 +5,7 @@ import { initSync } from './utils/syncEngine.js'
 import LoginScreen from './components/auth/LoginScreen.jsx'
 import POSScreen from './components/pos/POSScreen.jsx'
 import AdminDashboard from './components/admin/AdminDashboard.jsx'
+import PWAInstallPrompt from './components/shared/PWAInstallPrompt.jsx'
 import './index.css'
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/admin/*" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to={user ? '/pos' : '/login'} replace />} />
       </Routes>
+      <PWAInstallPrompt />
     </BrowserRouter>
   )
 }

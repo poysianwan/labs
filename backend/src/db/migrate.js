@@ -38,6 +38,7 @@ const migrations = [
     price DECIMAL(10,2) NOT NULL,
     is_available BOOLEAN DEFAULT true,
     is_combo BOOLEAN DEFAULT false,
+    description VARCHAR(255),
     image_url VARCHAR(500),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
@@ -180,7 +181,10 @@ const migrations = [
     product_id UUID NOT NULL REFERENCES products(id),
     quantity INT NOT NULL DEFAULT 1,
     UNIQUE(combo_id, product_id)
-  )`
+  )`,
+
+  // 021 - editable product menu descriptions
+  `ALTER TABLE products ADD COLUMN IF NOT EXISTS description VARCHAR(255)`
 ]
 
 const seed = async () => {

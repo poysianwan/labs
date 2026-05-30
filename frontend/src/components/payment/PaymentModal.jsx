@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { api } from '../../utils/apiClient.js'
 import { useAuthStore } from '../../stores/authStore.js'
-import { saveOrderOffline, markOrderSynced } from '../../db/index.js'
+import { saveOrderOffline, markOrderSynced, deleteLocalOrder } from '../../db/index.js'
 import { useSyncStore } from '../../stores/syncStore.js'
 import { IconCheck, IconX } from '../ui/Icons.jsx'
 
 const NUMPAD = ['1','2','3','4','5','6','7','8','9','·','0','←']
-const QUICK_CASH = [50,100,200,500,1000]
+const QUICK_CASH = [10,20,50,100,200,500]
 
 export default function PaymentModal({ total, items, diningType, shiftId, onClose, onSuccess }) {
   const [method, setMethod] = useState('cash')
@@ -30,6 +30,7 @@ export default function PaymentModal({ total, items, diningType, shiftId, onClos
   const splitCash = parseFloat(splitCashStr) || 0
   const splitCashDue = Math.max(0, total - splitGcash)
   const splitChange = Math.max(0, splitCash - splitCashDue)
+  const hasComboItem = items.some(item => item.is_combo || item.name?.toLowerCase().includes('combo'))
 
   let change = 0
   let canPay = false
@@ -60,6 +61,17 @@ export default function PaymentModal({ total, items, diningType, shiftId, onClos
     }
     if (currentStr.length >= 8) return
     updateFn(s => s + key)
+  }
+
+  const addQuickCash = (value) => {
+    const addToAmount = (current) => {
+      const next = (parseFloat(current) || 0) + value
+      return Number.isInteger(next) ? String(next) : next.toFixed(2)
+    }
+
+    if (method === 'cash') setAmountStr(addToAmount)
+    else if (method === 'split' && splitFocus === 'cash') setSplitCashStr(addToAmount)
+    else if (method === 'split' && splitFocus === 'gcash') setSplitGcashStr(addToAmount)
   }
 
   const handlePay = async () => {
@@ -102,10 +114,18 @@ export default function PaymentModal({ total, items, diningType, shiftId, onClos
         if (err.error === 'DUPLICATE_ORDER') {
           await markOrderSynced(orderId)
         } else if (err.error === 'INSUFFICIENT_STOCK') {
-          setError(`Out of stock: ${err.message}`)
+          await deleteLocalOrder(orderId)
+          setError(`Out of stock: ${err.ingredient || err.message || 'ingredient unavailable'}`)
+          setLoading(false); return
+        } else if (err.error === 'COMBO_NOT_CONFIGURED') {
+          await deleteLocalOrder(orderId)
+          setError(`Combo not configured: ${err.product_name || 'selected combo'}. Add combo items in Inventory before selling it.`)
           setLoading(false); return
         } else {
-          setError(`API Error: ${err.message || err.error || 'Server error'}`)
+          if (hasComboItem) await deleteLocalOrder(orderId)
+          setError(hasComboItem
+            ? `Combo order failed: ${err.message || err.error || 'server error'}. Check that the combo has items configured in Inventory.`
+            : `API Error: ${err.message || err.error || 'Server error'}`)
           setLoading(false); return
         }
       }
@@ -255,11 +275,7 @@ export default function PaymentModal({ total, items, diningType, shiftId, onClos
           {method !== 'gcash' && (
             <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'var(--pm-quick-pad)', marginTop: 'auto'}}>
               {QUICK_CASH.map(v=>(
-                <button key={v} onClick={()=>{
-                  if(method==='cash') setAmountStr(String(v))
-                  else if(method==='split' && splitFocus==='cash') setSplitCashStr(String(v))
-                  else if(method==='split' && splitFocus==='gcash') setSplitGcashStr(String(v))
-                }} style={{padding:'var(--pm-quick-pad)', fontSize:'var(--pm-font-small)', fontWeight:600, background:'var(--bg-panel)', color:'var(--text-strong)', border:'1px solid var(--border-light)', borderRadius:'var(--radius-md)'}}>₱{v}</button>
+                <button key={v} onClick={()=>addQuickCash(v)} style={{padding:'var(--pm-quick-pad)', fontSize:'var(--pm-font-small)', fontWeight:600, background:'var(--bg-panel)', color:'var(--text-strong)', border:'1px solid var(--border-light)', borderRadius:'var(--radius-md)'}}>+₱{v}</button>
               ))}
               <button onClick={()=>{
                   if(method==='cash') setAmountStr(String(total))

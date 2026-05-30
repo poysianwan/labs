@@ -108,6 +108,13 @@ router.post('/', authenticate, validate(orderSchema), async (req, res) => {
         needed: err.needed
       })
     }
+    if (err.message === 'COMBO_NOT_CONFIGURED') {
+      return res.status(422).json({
+        error: 'COMBO_NOT_CONFIGURED',
+        product_id: err.product_id,
+        product_name: err.product_name
+      })
+    }
     console.error('Order creation error:', err)
     res.status(500).json({ error: 'SERVER_ERROR' })
   }
@@ -117,7 +124,7 @@ router.post('/', authenticate, validate(orderSchema), async (req, res) => {
 router.get('/', authenticate, async (req, res) => {
   try {
     const { shift_id, date } = req.query
-    let sql = `SELECT o.id, o.order_number, o.status, o.dining_type, o.total,
+    let sql = `SELECT o.id, o.order_number, o.status, o.dining_type, o.total, o.void_reason,
                       o.created_at, u.name AS cashier,
                       CASE 
                         WHEN COUNT(p.id) > 1 THEN 'split' 

@@ -39,10 +39,67 @@ function IngredientRow({ ing, onRestock, onEdit, onDelete }) {
 
       <div className="inventory-actions" style={{ display: 'flex', gap: 8, marginLeft: 16 }}>
         <button onClick={() => onEdit(ing)} style={{ padding: '8px 14px', background: 'var(--bg-app)', color: 'var(--text-strong)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
-        <button onClick={() => onDelete(ing.id)} style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.05)', color: 'var(--red)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.1)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><IconTrash size={14} /></button>
+        <button onClick={() => onDelete(ing)} style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.05)', color: 'var(--red)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.1)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><IconTrash size={14} /></button>
         <button onClick={() => onRestock(ing)} style={{ padding: '10px 18px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
           + Restock
         </button>
+      </div>
+    </div>
+  )
+}
+
+function InventoryMessageModal({ title, message, onClose }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,17,17,0.36)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 'max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))' }}>
+      <div style={{ width: 'min(100%, 380px)', background: 'var(--bg-panel)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-xl)', boxShadow: '0 20px 60px rgba(0,0,0,0.16)', padding: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 12 }}>
+          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-strong)', letterSpacing: -0.4 }}>{title}</div>
+          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--bg-image)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <IconX size={15} />
+          </button>
+        </div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 14, fontWeight: 600, lineHeight: 1.5, marginBottom: 22 }}>{message}</div>
+        <button onClick={onClose} style={{ width: '100%', padding: '14px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 800 }}>
+          OK
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function InventoryConfirmModal({ item, loading, onCancel, onConfirm }) {
+  const isIngredient = item?.type === 'ingredient'
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,17,17,0.42)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, padding: 'max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))' }}>
+      <div style={{ width: 'min(100%, 420px)', background: 'var(--bg-panel)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-xl)', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', padding: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-strong)', letterSpacing: -0.4 }}>
+              Remove {isIngredient ? 'ingredient' : 'product'}?
+            </div>
+            <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: 13, fontWeight: 700 }}>
+              {item?.name}
+            </div>
+          </div>
+          <button onClick={onCancel} disabled={loading} style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--bg-image)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <IconX size={15} />
+          </button>
+        </div>
+
+        <div style={{ padding: 14, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.16)', borderRadius: 'var(--radius-lg)', color: '#b91c1c', fontSize: 13, lineHeight: 1.45, fontWeight: 700, marginBottom: 20 }}>
+          {isIngredient
+            ? 'This removes the ingredient from inventory. Product recipes that use it may need review.'
+            : 'This hides the product from the menu and product list history will remain intact.'}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr', gap: 10 }}>
+          <button onClick={onCancel} disabled={loading} style={{ padding: '14px 12px', background: 'var(--bg-image)', color: 'var(--text-muted)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 800 }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={loading} style={{ padding: '14px 12px', background: 'var(--red)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 900, opacity: loading ? 0.6 : 1 }}>
+            {loading ? 'Removing...' : 'Remove'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -53,6 +110,7 @@ function RecipeEditor({ product, onClose }) {
   const [ingredients, setIngredients] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -78,10 +136,11 @@ function RecipeEditor({ product, onClose }) {
 
   const save = async () => {
     setSaving(true)
+    setError('')
     try {
       await api.updateRecipe(product.id, recipe.map(r => ({ ingredient_id: r.ingredient_id, quantity_used: Number(r.quantity_used) })))
       onClose()
-    } catch (err) { alert('Save failed: ' + err.message) }
+    } catch (err) { setError(err.message || 'Save failed') }
     finally { setSaving(false) }
   }
 
@@ -122,6 +181,11 @@ function RecipeEditor({ product, onClose }) {
               </select>
             </div>
           )}
+          {error && (
+            <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginTop: 16, fontSize: 13, fontWeight: 700 }}>
+              {error}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
             <button onClick={onClose} style={{ flex: 1, padding: '14px', background: 'var(--bg-image)', color: 'var(--text-muted)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600 }}>Cancel</button>
             <button onClick={save} disabled={saving} style={{ flex: 2, padding: '14px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 700 }}>
@@ -139,6 +203,7 @@ function ComboEditor({ product, onClose }) {
   const [availableProducts, setAvailableProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -165,10 +230,11 @@ function ComboEditor({ product, onClose }) {
 
   const save = async () => {
     setSaving(true)
+    setError('')
     try {
       await api.updateComboItems(product.id, comboItems.map(i => ({ product_id: i.product_id, quantity: Number(i.quantity) })))
       onClose()
-    } catch (err) { alert('Save failed: ' + err.message) }
+    } catch (err) { setError(err.message || 'Save failed') }
     finally { setSaving(false) }
   }
 
@@ -209,6 +275,11 @@ function ComboEditor({ product, onClose }) {
               </select>
             </div>
           )}
+          {error && (
+            <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginTop: 16, fontSize: 13, fontWeight: 700 }}>
+              {error}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
             <button onClick={onClose} style={{ flex: 1, padding: '14px', background: 'var(--bg-image)', color: 'var(--text-muted)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600 }}>Cancel</button>
             <button onClick={save} disabled={saving} style={{ flex: 2, padding: '14px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 700 }}>
@@ -226,10 +297,12 @@ function IngredientEditor({ ingredient, onClose }) {
   const [unit, setUnit] = useState(ingredient?.unit || 'pcs')
   const [lowStockAlert, setLowStockAlert] = useState(ingredient?.low_stock_alert || 10)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const save = async () => {
     if (!name || !unit) return
     setSaving(true)
+    setError('')
     try {
       if (ingredient) {
         await api.updateIngredient(ingredient.id, { name, unit, low_stock_alert: Number(lowStockAlert) })
@@ -237,7 +310,7 @@ function IngredientEditor({ ingredient, onClose }) {
         await api.createIngredient({ name, unit, low_stock_alert: Number(lowStockAlert) })
       }
       onClose()
-    } catch (err) { alert('Save failed: ' + err.message) }
+    } catch (err) { setError(err.message || 'Save failed') }
     finally { setSaving(false) }
   }
 
@@ -263,6 +336,12 @@ function IngredientEditor({ ingredient, onClose }) {
           </div>
         </div>
 
+        {error && (
+          <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: 16, fontSize: 13, fontWeight: 700 }}>
+            {error}
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 12 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '14px', background: 'var(--bg-image)', color: 'var(--text-muted)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600 }}>Cancel</button>
           <button onClick={save} disabled={saving} style={{ flex: 2, padding: '14px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 700 }}>
@@ -278,34 +357,38 @@ function ProductEditor({ product, onClose }) {
   const [name, setName] = useState(product?.name || '')
   const [price, setPrice] = useState(product?.price || '')
   const [categoryId, setCategoryId] = useState(product?.category_id || '')
+  const [description, setDescription] = useState(product?.description || '')
   const [imageUrl, setImageUrl] = useState(product?.image_url || '')
   const [categories, setCategories] = useState([])
   const [saving, setSaving] = useState(false)
-
-  const COMBO_CATEGORY_ID = 'aaaa0003-0000-0000-0000-000000000000'
+  const [error, setError] = useState('')
 
   useEffect(() => {
     api.getCategories().then(setCategories)
   }, [])
 
+  const selectedCategory = categories.find(c => c.id === categoryId)
+  const isCombo = selectedCategory ? selectedCategory.name?.toLowerCase().includes('combo') : Boolean(product?.is_combo)
+
   const save = async () => {
     if (!name || !price || !categoryId) return
     setSaving(true)
+    setError('')
     try {
-      const isCombo = categoryId === COMBO_CATEGORY_ID
+      const payload = { name, price: Number(price), category_id: categoryId, image_url: imageUrl || null, description: description.trim() || null, is_combo: isCombo }
       if (product) {
-        await api.updateProduct(product.id, { name, price: Number(price), category_id: categoryId, image_url: imageUrl, is_combo: isCombo })
+        await api.updateProduct(product.id, payload)
       } else {
-        await api.createProduct({ name, price: Number(price), category_id: categoryId, image_url: imageUrl, is_combo: isCombo })
+        await api.createProduct(payload)
       }
       onClose()
-    } catch (err) { alert('Save failed: ' + err.message) }
+    } catch (err) { setError(err.message || 'Save failed') }
     finally { setSaving(false) }
   }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(246,247,251,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
-      <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-xl)', padding: 32, width: 400, boxShadow: 'var(--shadow-lg)' }}>
+      <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-xl)', padding: 32, width: 480, maxWidth: 'calc(100vw - 32px)', maxHeight: '88dvh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}>
         <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--text-strong)', marginBottom: 24, letterSpacing: -0.5 }}>{product ? 'Edit Product' : 'Add New Product'}</div>
 
         <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Product Name</label>
@@ -330,7 +413,32 @@ function ProductEditor({ product, onClose }) {
 
         <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Image URL (Optional)</label>
         <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://..."
-          style={{ width: '100%', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-strong)', fontSize: 14, marginBottom: 24, fontWeight: 500 }} />
+          style={{ width: '100%', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-strong)', fontSize: 14, marginBottom: 16, fontWeight: 500 }} />
+
+        <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Menu Description</label>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, lineHeight: 1.4, marginBottom: 8 }}>
+          Write a short POS menu line. Mention what is included, size, flavor, or selling point. Keep it under one sentence so it fits on product cards.
+        </div>
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Example: Beef patty, lettuce, tomato / Burger + fries + drink / Fresh brewed, 16oz"
+          maxLength={255}
+          rows={3}
+          style={{ width: '100%', resize: 'none', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-strong)', fontSize: 14, marginBottom: isCombo ? 12 : 24, fontWeight: 500, lineHeight: 1.4 }}
+        />
+
+        {isCombo && (
+          <div style={{ marginBottom: 24, padding: 14, background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-lg)', color: 'var(--text-muted)', fontSize: 13, fontWeight: 700, lineHeight: 1.45 }}>
+            Save this combo product here, then use the Recipes & Combos tab to choose which products go inside it.
+          </div>
+        )}
+
+        {error && (
+          <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: 16, fontSize: 13, fontWeight: 700 }}>
+            {error}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 12 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '14px', background: 'var(--bg-image)', color: 'var(--text-muted)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600 }}>Cancel</button>
@@ -356,6 +464,8 @@ export default function InventoryPanel() {
   const [showProductModal, setShowProductModal] = useState(false)
   const [editingIngredient, setEditingIngredient] = useState(null)
   const [showIngredientModal, setShowIngredientModal] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState(null)
+  const [messageModal, setMessageModal] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -386,7 +496,7 @@ export default function InventoryPanel() {
       await api.restock(restocking.id, qty, restockNote || 'manual restock')
       setRestocking(null); setRestockQty(''); setRestockNote('')
       await loadIngredients()
-    } catch (err) { alert('Restock failed: ' + err.message) }
+    } catch (err) { setMessageModal({ title: 'Restock failed', message: err.message || 'Unable to add stock right now.' }) }
     finally { setSaving(false) }
   }
 
@@ -394,23 +504,34 @@ export default function InventoryPanel() {
     try {
       await api.updateProduct(product.id, { is_available: !product.is_available })
       await loadProducts()
-    } catch (err) { alert('Update failed') }
+    } catch (err) { setMessageModal({ title: 'Update failed', message: err.message || 'Unable to update product availability.' }) }
   }
 
-  const handleDeleteProduct = async (id) => {
-    if (!confirm('Are you sure you want to remove this product?')) return
-    try {
-      await api.deleteProduct(id)
-      await loadProducts()
-    } catch (err) { alert('Delete failed: ' + err.message) }
+  const handleDeleteProduct = async (product) => {
+    setPendingDelete({ type: 'product', id: product.id, name: product.name })
   }
 
-  const handleDeleteIngredient = async (id) => {
-    if (!confirm('Are you sure you want to remove this ingredient? All dependent product recipes will be affected.')) return
+  const handleDeleteIngredient = async (ingredient) => {
+    setPendingDelete({ type: 'ingredient', id: ingredient.id, name: ingredient.name })
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    setSaving(true)
     try {
-      await api.deleteIngredient(id)
-      await loadIngredients()
-    } catch (err) { alert('Delete failed: ' + err.message) }
+      if (pendingDelete.type === 'product') {
+        await api.deleteProduct(pendingDelete.id)
+        await loadProducts()
+      } else {
+        await api.deleteIngredient(pendingDelete.id)
+        await loadIngredients()
+      }
+      setPendingDelete(null)
+    } catch (err) {
+      setMessageModal({ title: 'Delete failed', message: err.message || `Unable to remove ${pendingDelete.name}.` })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const lowCount = ingredients.filter(i => i.is_low).length
@@ -430,7 +551,7 @@ export default function InventoryPanel() {
           {[
             ['stock', `Stock Levels${lowCount > 0 ? ` (${lowCount})` : ''}`], 
             ['products', 'Product List'], 
-            ['recipes', 'Recipes']
+            ['recipes', 'Recipes & Combos']
           ].map(([id, label]) => (
             <button key={id} onClick={() => setView(id)} style={{
               padding: '10px 24px', borderRadius: '8px', fontSize: 13, fontWeight: 700,
@@ -508,12 +629,12 @@ export default function InventoryPanel() {
                       color: p.is_available ? 'var(--green)' : 'var(--text-muted)',
                       border: `1px solid ${p.is_available ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-light)'}`,
                       cursor: 'pointer'
-                    }}>{p.is_available ? '• LIVE' : 'HIDDEN'}</button>
+                    }}>{p.is_available ? 'Available' : 'Unavailable'}</button>
                     <button onClick={() => { setEditingProduct(p); setShowProductModal(true) }}
                       style={{ flex: 1, padding: '10px', background: 'var(--bg-app)', color: 'var(--text-strong)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                       Edit
                     </button>
-                    <button onClick={() => handleDeleteProduct(p.id)}
+                    <button onClick={() => handleDeleteProduct(p)}
                       style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.05)', color: 'var(--red)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.1)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                       <IconTrash size={14} />
                     </button>
@@ -527,7 +648,7 @@ export default function InventoryPanel() {
         {/* Recipes view */}
         {!loading && view === 'recipes' && (
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 20 }}>Bill of Materials (BOM)</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 20 }}>Recipes and combo composition</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
               {products.map(p => (
                 <div key={p.id} className="inventory-card" style={{ 
@@ -608,6 +729,23 @@ export default function InventoryPanel() {
         <IngredientEditor
           ingredient={editingIngredient}
           onClose={() => { setShowIngredientModal(false); setEditingIngredient(null); loadIngredients() }}
+        />
+      )}
+
+      {pendingDelete && (
+        <InventoryConfirmModal
+          item={pendingDelete}
+          loading={saving}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={confirmDelete}
+        />
+      )}
+
+      {messageModal && (
+        <InventoryMessageModal
+          title={messageModal.title}
+          message={messageModal.message}
+          onClose={() => setMessageModal(null)}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, useNavigate, Navigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore.js'
+import AdminHome from './AdminHome.jsx'
 import SalesReport from './SalesReport.jsx'
 import InventoryPanel from './InventoryPanel.jsx'
 import ShiftPanel from './ShiftPanel.jsx'
@@ -25,23 +26,23 @@ export default function AdminDashboard() {
         </div>
 
         <nav className="admin-nav" style={{ flex: 1, overflowY: 'auto', padding: '0 8px' }}>
-          <NavLink to="/admin" end className={({ isActive }) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/admin" end className={({ isActive }) => `admin-nav-item admin-nav-dashboard ${isActive ? 'active' : ''}`}>
             <IconLayoutDashboard size={20} /> <span>Dashboard</span>
           </NavLink>
-          <NavLink to="/admin/orders" className={({ isActive }) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/admin/orders" className={({ isActive }) => `admin-nav-item admin-nav-orders ${isActive ? 'active' : ''}`}>
             <IconClipboardList size={20} /> <span>Orders</span>
           </NavLink>
-          <NavLink to="/admin/inventory" className={({ isActive }) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/admin/inventory" className={({ isActive }) => `admin-nav-item admin-nav-inventory ${isActive ? 'active' : ''}`}>
             <IconBox size={20} /> <span>Inventory</span>
           </NavLink>
-          <NavLink to="/admin/activity" className={({ isActive }) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/admin/activity" className={({ isActive }) => `admin-nav-item admin-nav-activity ${isActive ? 'active' : ''}`}>
             <IconActivity size={20} /> <span>Activity</span>
           </NavLink>
-          <NavLink to="/admin/shifts" className={({ isActive }) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink to="/admin/shifts" className={({ isActive }) => `admin-nav-item admin-nav-shifts ${isActive ? 'active' : ''}`}>
             <IconClock size={18} /> <span>Shifts</span>
           </NavLink>
           {isAdmin() && (
-            <NavLink to="/admin/users" className={({ isActive }) => `admin-nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/admin/users" className={({ isActive }) => `admin-nav-item admin-nav-users ${isActive ? 'active' : ''}`}>
               <IconUsers size={20} /> <span>Users</span>
             </NavLink>
           )}
@@ -88,13 +89,14 @@ export default function AdminDashboard() {
         </div>
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           <Routes>
+            {isAdmin() && <Route index element={<AdminHome />} />}
             {isAdmin() && <Route path="sales" element={<SalesReport />} />}
             <Route path="inventory" element={<InventoryPanel />} />
             <Route path="orders" element={<OrdersPanel />} />
             <Route path="activity" element={<ActivityPanel />} />
             <Route path="users" element={<CashierPanel />} />
             <Route path="shifts" element={<ShiftPanel />} />
-            <Route path="*" element={<Navigate to={isAdmin() ? "sales" : "orders"} replace />} />
+            <Route path="*" element={<Navigate to={isAdmin() ? "/admin" : "orders"} replace />} />
           </Routes>
         </div>
       </div>

@@ -1,0 +1,9 @@
+{
+  "appId": "com.labsburger.pos",
+  "appName": "Labs Burger POS",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

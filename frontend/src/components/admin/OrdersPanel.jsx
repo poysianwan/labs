@@ -3,6 +3,25 @@ import { api } from '../../utils/apiClient.js'
 import { useAuthStore } from '../../stores/authStore.js'
 import { IconX, IconPrinter } from '../ui/Icons.jsx'
 import { printReceipt, printReceiptBrowser } from '../../utils/printer.js'
+import { localDateInputValue } from '../../utils/date.js'
+import { getRecentOrders } from '../../db/index.js'
+
+const normalizeLocalOrder = (order, user) => {
+  const total = (order.items || []).reduce((sum, item) => sum + (Number(item.unit_price) * Number(item.quantity)), 0)
+  const paymentMethod = order.payments?.length > 1 ? 'split' : order.payments?.[0]?.method || 'offline'
+
+  return {
+    id: order.id,
+    order_number: order.synced ? 'Synced' : 'Syncing',
+    status: 'completed',
+    dining_type: order.dining_type || 'takeout',
+    total,
+    created_at: order.created_at,
+    cashier: user?.name || 'Offline',
+    payment_method: paymentMethod,
+    isLocal: true
+  }
+}
 
 function OrderDetailsModal({ orderId, onClose }) {
   const [order, setOrder] = useState(null)
@@ -72,6 +91,13 @@ function OrderDetailsModal({ orderId, onClose }) {
           <button onClick={onClose} style={{ background: 'var(--bg-image)', color: 'var(--text-muted)', width: 32, height: 32, borderRadius: '50%', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><IconX size={14} /></button>
         </div>
 
+        {isVoided && order.void_reason && (
+          <div style={{ marginBottom: 20, padding: 14, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 'var(--radius-lg)' }}>
+            <div style={{ fontSize: 11, color: 'var(--red)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Void reason</div>
+            <div style={{ fontSize: 14, color: 'var(--text-strong)', fontWeight: 700, lineHeight: 1.4 }}>{order.void_reason}</div>
+          </div>
+        )}
+
         <div style={{ borderBottom: '1px dashed var(--border-light)', paddingBottom: 20, marginBottom: 20 }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>Items Ordered</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -137,30 +163,142 @@ function OrderDetailsModal({ orderId, onClose }) {
   )
 }
 
+function VoidOrderModal({ order, onCancel, onConfirm }) {
+  const [reason, setReason] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const quickReasons = ['Customer cancelled', 'Wrong order', 'Duplicate order', 'Payment issue']
+
+  const submit = async () => {
+    const trimmedReason = reason.trim()
+    if (!trimmedReason || loading) return
+
+    setLoading(true)
+    setError('')
+    try {
+      await onConfirm(order.id, trimmedReason)
+    } catch (err) {
+      setError(err.message || 'Failed to void order')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17,17,17,0.42)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400, padding: 'max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))' }}>
+      <div style={{ width: 'min(100%, 420px)', background: 'var(--bg-panel)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-xl)', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', padding: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-strong)', letterSpacing: -0.4 }}>Void order?</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, color: 'var(--text-muted)', fontSize: 13, fontWeight: 600 }}>
+              <span style={{ color: 'var(--text-strong)', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '4px 8px', fontFamily: 'monospace', fontWeight: 900 }}>{order.order_number}</span>
+              <span>will be marked voided</span>
+            </div>
+          </div>
+          <button onClick={onCancel} disabled={loading} style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--bg-image)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <IconX size={15} />
+          </button>
+        </div>
+
+        <div style={{ padding: 14, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.16)', borderRadius: 'var(--radius-lg)', color: '#b91c1c', fontSize: 13, lineHeight: 1.45, fontWeight: 600, marginBottom: 18 }}>
+          Voiding restores stock for this order and records the reason in the system.
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Reason</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {quickReasons.map(item => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setReason(item)}
+              disabled={loading}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-pill)',
+                background: reason === item ? 'var(--text-strong)' : 'var(--bg-image)',
+                color: reason === item ? 'var(--bg-panel)' : 'var(--text-muted)',
+                border: `1px solid ${reason === item ? 'var(--text-strong)' : 'var(--border-light)'}`,
+                fontSize: 12,
+                fontWeight: 800
+              }}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Enter void reason"
+          rows={4}
+          disabled={loading}
+          autoFocus
+          style={{ width: '100%', resize: 'none', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-lg)', padding: 14, color: 'var(--text-strong)', fontSize: 16, fontWeight: 600, lineHeight: 1.4, marginBottom: error ? 10 : 18 }}
+        />
+
+        {error && (
+          <div style={{ color: 'var(--red)', fontSize: 13, fontWeight: 700, marginBottom: 14 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 10 }}>
+          <button onClick={onCancel} disabled={loading} style={{ padding: '14px 12px', background: 'var(--bg-image)', color: 'var(--text-muted)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 800 }}>
+            Cancel
+          </button>
+          <button onClick={submit} disabled={!reason.trim() || loading} style={{ padding: '14px 12px', background: reason.trim() ? 'var(--red)' : 'var(--bg-image)', color: reason.trim() ? 'white' : 'var(--text-muted)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 900 }}>
+            {loading ? 'Voiding...' : 'Confirm Void'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function OrdersPanel() {
-  const { isAdmin } = useAuthStore()
+  const { isAdmin, user } = useAuthStore()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(localDateInputValue())
+  const [error, setError] = useState('')
   const [viewingOrder, setViewingOrder] = useState(null)
+  const [voidingOrder, setVoidingOrder] = useState(null)
 
   useEffect(() => {
     const load = async () => {
       setLoading(true)
-      try { const data = await api.getOrders({ date }); setOrders(data) }
-      catch { setOrders([]) }
+      setError('')
+      try {
+        const [remoteOrders, localOrders] = await Promise.all([
+          api.getOrders({ date }),
+          getRecentOrders(100)
+        ])
+        const unsyncedLocal = localOrders
+          .filter(order => !order.synced && localDateInputValue(new Date(order.created_at)) === date)
+          .map(order => normalizeLocalOrder(order, user))
+        const remoteIds = new Set(remoteOrders.map(order => order.id))
+        setOrders([
+          ...unsyncedLocal.filter(order => !remoteIds.has(order.id)),
+          ...remoteOrders
+        ])
+      }
+      catch (err) {
+        const localOrders = await getRecentOrders(100)
+        const unsyncedLocal = localOrders
+          .filter(order => !order.synced && localDateInputValue(new Date(order.created_at)) === date)
+          .map(order => normalizeLocalOrder(order, user))
+        setOrders(unsyncedLocal)
+        setError(err.status === 401 ? 'Session expired. Log out and sign in again on localhost.' : err.message || 'Unable to load orders')
+      }
       finally { setLoading(false) }
     }
     load()
-  }, [date])
+  }, [date, user])
 
-  const handleVoid = async (id) => {
-    const reason = prompt('Void reason:')
-    if (!reason) return
-    try {
-      await api.voidOrder(id, reason)
-      setOrders(o => o.map(x => x.id === id ? { ...x, status: 'voided' } : x))
-    } catch (e) { alert('Failed to void: ' + e.message) }
+  const handleVoid = async (id, reason) => {
+    await api.voidOrder(id, reason)
+    setOrders(o => o.map(x => x.id === id ? { ...x, status: 'voided', void_reason: reason } : x))
+    setVoidingOrder(null)
   }
 
   return (
@@ -173,6 +311,11 @@ export default function OrdersPanel() {
 
       {loading ? <div style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Loading transactions...</div> : (
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 4 }}>
+          {error && (
+            <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 'var(--radius-md)', padding: '12px 14px', marginBottom: 16, fontSize: 13, fontWeight: 700 }}>
+              Could not load orders: {error}
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 380px), 1fr))', gap: 16, paddingBottom: 24 }}>
           {orders.filter(o => isAdmin() || o.status !== 'voided').map(order => {
             const isVoided = order.status === 'voided'
@@ -229,13 +372,21 @@ export default function OrdersPanel() {
                   </div>
                 </div>
 
+                {isVoided && order.void_reason && (
+                  <div style={{ padding: '12px 14px', background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.16)', borderRadius: 'var(--radius-md)' }}>
+                    <div style={{ fontSize: 10, color: 'var(--red)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5 }}>Void reason</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-strong)', fontWeight: 700, lineHeight: 1.4 }}>{order.void_reason}</div>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
                   <button onClick={() => setViewingOrder(order.id)}
+                    disabled={order.isLocal}
                     style={{ flex: 1, padding: '10px', background: 'var(--bg-image)', color: 'var(--text-strong)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
-                    View Details
+                    {order.isLocal ? 'Saved Offline' : 'View Details'}
                   </button>
                   {!isVoided ? (
-                    <button onClick={() => handleVoid(order.id)}
+                    <button onClick={() => setVoidingOrder(order)}
                       style={{ padding: '10px 16px', background: 'transparent', color: 'var(--red)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: 0.8 }}>
                       Void
                     </button>
@@ -252,6 +403,7 @@ export default function OrdersPanel() {
     )}
 
       {viewingOrder && <OrderDetailsModal orderId={viewingOrder} onClose={() => setViewingOrder(null)} />}
+      {voidingOrder && <VoidOrderModal order={voidingOrder} onCancel={() => setVoidingOrder(null)} onConfirm={handleVoid} />}
     </div>
   )
 }

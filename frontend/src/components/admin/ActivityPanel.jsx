@@ -18,12 +18,117 @@ const LOG_CONFIG = {
 }
 
 const fmtLabel = (s) => s.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+const parseValue = (value) => {
+  if (!value) return null
+  if (typeof value !== 'string') return value
+  try { return JSON.parse(value) } catch { return value }
+}
+const summarizeLog = (log) => {
+  const details = parseValue(log.new_value) || parseValue(log.old_value)
+  if (!details || typeof details !== 'object') return log.details || 'No additional summary available.'
+  if (log.action.startsWith('revert_')) return details.message || 'Action was rolled back.'
+
+  switch (log.action) {
+    case 'order_complete':
+      return `Order ${details.order_number || log.record_id} was processed for ₱${Number(details.total || 0).toFixed(2)}.`
+    case 'void_order':
+      return `Order ${log.record_id || ''} was voided. Reason: ${details.reason || 'No reason recorded'}.`
+    case 'restock':
+      return `Restocked ${details.name || 'item'} by ${details.quantity || 0} ${details.unit || 'units'}.`
+    case 'update_product':
+      return `Updated product details for ${details.name || 'this product'}.`
+    case 'shift_start':
+      return `Shift opened with ₱${Number(details.opening_cash || 0).toFixed(2)}.`
+    case 'shift_end':
+      return `Shift closed with ₱${Number(details.closing_cash || 0).toFixed(2)}.`
+    case 'petty_cash':
+      return `${details.type === 'pay_in' ? 'Added' : 'Withdrew'} ₱${Number(details.amount || 0).toFixed(2)}. ${details.reason || ''}`
+    default:
+      return `${fmtLabel(log.action)}${details.name ? `: ${details.name}` : ''}`
+  }
+}
+
+function DetailBlock({ title, value }) {
+  if (!value) return null
+  const entries = typeof value === 'object' && !Array.isArray(value) ? Object.entries(value) : null
+
+  return (
+    <div className="activity-detail-block">
+      <div className="activity-detail-title">{title}</div>
+      {entries ? (
+        <div className="activity-detail-grid">
+          {entries.map(([key, val]) => (
+            <div key={key} className="activity-detail-row">
+              <span>{fmtLabel(key)}</span>
+              <strong>{typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val ?? '-')}</strong>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <pre className="activity-detail-pre">{String(value)}</pre>
+      )}
+    </div>
+  )
+}
+
+function ActivityDetailsModal({ log, config, isAdmin, canRevert, onClose, onRevert }) {
+  const oldValue = parseValue(log.old_value)
+  const newValue = parseValue(log.new_value)
+  const created = new Date(log.created_at)
+
+  return (
+    <div className="activity-modal-backdrop" onMouseDown={onClose}>
+      <div className="activity-modal" onMouseDown={e => e.stopPropagation()}>
+        <div className="activity-modal-header">
+          <div>
+            <div className="activity-modal-eyebrow">{config.label}</div>
+            <h3>Activity Details</h3>
+          </div>
+          <button className="activity-modal-close" onClick={onClose} aria-label="Close details">×</button>
+        </div>
+
+        <div className="activity-detail-summary">
+          <div>
+            <span>Action</span>
+            <strong>{fmtLabel(log.action)}</strong>
+          </div>
+          <div>
+            <span>User</span>
+            <strong>{log.user_name || 'System'}</strong>
+          </div>
+          <div>
+            <span>When</span>
+            <strong>{created.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })} {created.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</strong>
+          </div>
+          <div>
+            <span>Record</span>
+            <strong>{log.record_id || '-'}</strong>
+          </div>
+        </div>
+
+        <div className="activity-modal-description">{summarizeLog(log)}</div>
+        <DetailBlock title="New Value" value={newValue} />
+        <DetailBlock title="Previous Value" value={oldValue} />
+
+        <div className="activity-modal-actions">
+          <button className="activity-secondary-btn" onClick={onClose}>Close</button>
+          {isAdmin && canRevert && (
+            <button className="activity-danger-btn" onClick={onRevert}>
+              <IconRotateCcw size={14} /> Revert Action
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function ActivityPanel() {
   const { isAdmin } = useAuthStore()
   const [logs, setLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [revertingLog, setRevertingLog] = useState(null)
+  const [selectedLog, setSelectedLog] = useState(null)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
@@ -55,6 +160,7 @@ export default function ActivityPanel() {
       ))
       
       setRevertingLog(null)
+      setSelectedLog(null)
       fetchLogs(page) // Refresh to get the new 'revert_' log entry
     } catch (err) {
       alert(err.message || 'Failed to revert action')
@@ -123,13 +229,26 @@ export default function ActivityPanel() {
               const config = isUndoAction 
                 ? { icon: IconRotateCcw, color: '#3b82f6', label: 'Action Reverted' }
                 : (LOG_CONFIG[log.action] || { icon: IconAlertCircle, color: 'var(--text-muted)', label: fmtLabel(log.action) })
+              const canRevert = !isReverted && !isUndoAction && isAdmin() && config.reversible
               
               const Icon = config.icon
               const timeStr = new Date(log.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
               const dateStr = new Date(log.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
 
               return (
-                <div key={log.id} style={{
+                <div
+                  key={log.id}
+                  className="activity-card"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedLog(log)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setSelectedLog(log)
+                    }
+                  }}
+                  style={{
                   background: 'var(--bg-panel)',
                   border: `1px solid ${isReverted ? 'rgba(59, 130, 246, 0.2)' : 'var(--border-card)'}`,
                   borderRadius: 'var(--radius-xl)',
@@ -173,9 +292,12 @@ export default function ActivityPanel() {
                     </div>
                   </div>
 
-                  {!isReverted && !isUndoAction && isAdmin() && config.reversible && (
+                  {canRevert && (
                     <button
-                      onClick={() => setRevertingLog(log)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRevertingLog(log)
+                      }}
                       disabled={loading || revertingLog?.id === log.id}
                       title="Undo this action"
                       style={{
@@ -251,6 +373,26 @@ export default function ActivityPanel() {
           </div>
         </div>
       )}
+
+      {selectedLog && (() => {
+        const isReverted = selectedLog.is_reverted
+        const isUndoAction = selectedLog.action.toLowerCase().startsWith('revert_')
+        const config = isUndoAction
+          ? { icon: IconRotateCcw, color: '#3b82f6', label: 'Action Reverted' }
+          : (LOG_CONFIG[selectedLog.action] || { icon: IconAlertCircle, color: 'var(--text-muted)', label: fmtLabel(selectedLog.action) })
+        const canRevert = !isReverted && !isUndoAction && isAdmin() && config.reversible
+
+        return (
+          <ActivityDetailsModal
+            log={selectedLog}
+            config={config}
+            isAdmin={isAdmin()}
+            canRevert={canRevert}
+            onClose={() => setSelectedLog(null)}
+            onRevert={() => setRevertingLog(selectedLog)}
+          />
+        )
+      })()}
     </div>
   )
 }
