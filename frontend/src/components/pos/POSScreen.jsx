@@ -663,7 +663,7 @@ function ProductCard({ product, cartQty = 0, onAdd, onReduce }) {
         transform: cartQty > 0 ? 'translateY(-2px)' : 'none',
         overflow: 'visible'
       }}
-      className={`premium-card-lift product-card ${cartQty > 0 ? 'selected' : ''}`}
+      className={`premium-card-lift product-card ${cartQty > 0 ? 'selected' : ''} ${unavailable ? 'unavailable' : ''}`}
     >
       {isBestSeller && (
         <div style={{ position: 'absolute', top: 16, left: 16, background: 'var(--gold-light)', color: '#b45309', padding: '4px 10px', borderRadius: 'var(--radius-sm)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.5, zIndex: 2 }}>
@@ -673,6 +673,11 @@ function ProductCard({ product, cartQty = 0, onAdd, onReduce }) {
       {product.is_combo && !isBestSeller && (
         <div style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(0,0,0,0.04)', color: 'var(--text-strong)', padding: '4px 10px', borderRadius: 'var(--radius-sm)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: 1, zIndex: 2 }}>
           Combo
+        </div>
+      )}
+      {unavailable && (
+        <div className="product-card-unavailable-badge">
+          Unavailable
         </div>
       )}
 
@@ -711,7 +716,11 @@ function ProductCard({ product, cartQty = 0, onAdd, onReduce }) {
         </div>
         
         {/* Boutique Stepper Pill */}
-        {cartQty > 0 ? (
+        {unavailable ? (
+          <div className="product-card-unavailable-control">
+            Unavailable
+          </div>
+        ) : cartQty > 0 ? (
           <div onClick={e => e.stopPropagation()} style={{ 
             display: 'flex', alignItems: 'center', background: 'var(--dark)', 
             borderRadius: 'var(--radius-pill)', overflow: 'hidden', 
