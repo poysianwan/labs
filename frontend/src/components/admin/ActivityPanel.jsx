@@ -7,6 +7,8 @@ const LOG_CONFIG = {
   void_order: { icon: IconTrash, color: 'var(--red)', label: 'Order Voided' },
   order_complete: { icon: IconTrendingUp, color: 'var(--green)', label: 'Order Completed' },
   restock: { icon: IconBox, color: 'var(--gold)', label: 'Stock Restock', reversible: true },
+  receive_house_stock: { icon: IconBox, color: 'var(--green)', label: 'House Stock Received' },
+  transfer_house_to_store: { icon: IconBox, color: 'var(--gold)', label: 'Stock Moved to Store' },
   shift_start: { icon: IconClock, color: 'var(--green)', label: 'Shift Started' },
   shift_end: { icon: IconClock, color: 'var(--red)', label: 'Shift Ended' },
   petty_cash: { icon: IconAlertCircle, color: 'var(--text-strong)', label: 'Cash Movement', reversible: true },
@@ -35,6 +37,10 @@ const summarizeLog = (log) => {
       return `Order ${log.record_id || ''} was voided. Reason: ${details.reason || 'No reason recorded'}.`
     case 'restock':
       return `Restocked ${details.name || 'item'} by ${details.quantity || 0} ${details.unit || 'units'}.`
+    case 'receive_house_stock':
+      return `Received ${details.quantity || 0} ${details.unit || 'units'} of ${details.name || 'item'} into house stock.`
+    case 'transfer_house_to_store':
+      return `Moved ${details.quantity || 0} ${details.unit || 'units'} of ${details.name || 'item'} from house to store.`
     case 'update_product':
       return `Updated product details for ${details.name || 'this product'}.`
     case 'shift_start':
@@ -187,6 +193,10 @@ export default function ActivityPanel() {
           return <span>Order <strong>#{log.record_id?.slice(0,8)}</strong> voided. Reason: <span style={{ color: 'var(--red)' }}>"{details.reason}"</span></span>
         case 'restock':
           return <span>Restocked <strong>{details.name}</strong> (+{details.quantity} {details.unit || 'units'}).</span>
+        case 'receive_house_stock':
+          return <span>Received <strong>{details.name}</strong> into house stock (+{details.quantity} {details.unit || 'units'}).</span>
+        case 'transfer_house_to_store':
+          return <span>Moved <strong>{details.name}</strong> from house to store ({details.quantity} {details.unit || 'units'}).</span>
         case 'update_product':
           return <span>Updated <strong>{details.name}</strong> price/info.</span>
         case 'create_product':

@@ -7,7 +7,7 @@ import { IconBackspace, IconCheck } from '../ui/Icons.jsx'
 
 const KEYS = ['1','2','3','4','5','6','7','8','9','←','0','✓']
 
-const APP_VERSION = '1.0.2'
+const APP_VERSION = '1.0.3'
 
 const hashPin = async (pin) => {
   const data = new TextEncoder().encode(pin)

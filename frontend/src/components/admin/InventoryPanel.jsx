@@ -12,8 +12,11 @@ import {
   getProducts
 } from '../../db/index.js'
 
-function IngredientRow({ ing, onRestock, onEdit, onDelete }) {
-  const pct = Math.min(100, (ing.current_stock / (ing.low_stock_alert * 4)) * 100)
+function IngredientRow({ ing, onReceiveHouse, onTransferStore, onEdit, onDelete }) {
+  const storeStock = Number(ing.current_stock || 0)
+  const houseStock = Number(ing.house_stock || 0)
+  const totalStock = storeStock + houseStock
+  const pct = Math.min(100, (storeStock / (Number(ing.low_stock_alert || 1) * 4)) * 100)
   return (
     <div className="inventory-card" style={{ 
       background: 'var(--bg-panel)', 
@@ -31,27 +34,42 @@ function IngredientRow({ ing, onRestock, onEdit, onDelete }) {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--text-strong)', marginBottom: 2, letterSpacing: -0.5 }}>{ing.name}</div>
           <div style={{ fontSize: 13, color: ing.is_low ? 'var(--red)' : 'var(--text-muted)', fontWeight: 700 }}>
-            {Number(ing.current_stock).toFixed(0)} <span style={{ opacity: 0.8, fontSize: 11 }}>{ing.unit}</span>
+            Store: {storeStock.toFixed(0)} <span style={{ opacity: 0.8, fontSize: 11 }}>{ing.unit}</span>
             {ing.is_low && <span style={{ marginLeft: 8, background: 'rgba(239,68,68,0.1)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', fontSize: 9, fontWeight: 900, textTransform: 'uppercase' }}>Attention: Low</span>}
           </div>
         </div>
       </div>
 
-      <div style={{ flex: 1, minWidth: 140 }}>
+      <div style={{ flex: 1.25, minWidth: 220 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-          <span>Current Stock Level</span>
+          <span>Store Stock Level</span>
           <span style={{ color: 'var(--text-strong)' }}>Alert at: {ing.low_stock_alert}</span>
         </div>
         <div style={{ height: 6, background: 'var(--bg-app)', borderRadius: 10, width: '100%', overflow: 'hidden', border: '1px solid var(--border-light)' }}>
           <div style={{ height: '100%', borderRadius: 10, width: `${pct}%`, background: ing.is_low ? 'var(--red)' : '#10b981', transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }} />
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
+          {[
+            ['Store', storeStock],
+            ['House', houseStock],
+            ['Total', totalStock]
+          ].map(([label, value]) => (
+            <div key={label} style={{ background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '8px 10px' }}>
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: 0.6 }}>{label}</div>
+              <div style={{ fontSize: 14, color: 'var(--text-strong)', fontWeight: 900, marginTop: 2 }}>{Number(value).toFixed(0)}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="inventory-actions" style={{ display: 'flex', gap: 8, marginLeft: 16 }}>
+      <div className="inventory-actions" style={{ display: 'flex', gap: 8, marginLeft: 16, flexWrap: 'wrap' }}>
         <button onClick={() => onEdit(ing)} style={{ padding: '8px 14px', background: 'var(--bg-app)', color: 'var(--text-strong)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Edit</button>
         <button onClick={() => onDelete(ing)} style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.05)', color: 'var(--red)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(239,68,68,0.1)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}><IconTrash size={14} /></button>
-        <button onClick={() => onRestock(ing)} style={{ padding: '10px 18px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
-          + Restock
+        <button onClick={() => onReceiveHouse(ing)} style={{ padding: '10px 14px', background: 'var(--bg-app)', color: 'var(--text-strong)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+          Receive to House
+        </button>
+        <button onClick={() => onTransferStore(ing)} style={{ padding: '10px 16px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', border: 'none', cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
+          Move to Store
         </button>
       </div>
     </div>
@@ -306,6 +324,7 @@ function IngredientEditor({ ingredient, onClose }) {
   const [name, setName] = useState(ingredient?.name || '')
   const [unit, setUnit] = useState(ingredient?.unit || 'pcs')
   const [lowStockAlert, setLowStockAlert] = useState(ingredient?.low_stock_alert || 10)
+  const [startingHouseStock, setStartingHouseStock] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -317,7 +336,7 @@ function IngredientEditor({ ingredient, onClose }) {
       if (ingredient) {
         await api.updateIngredient(ingredient.id, { name, unit, low_stock_alert: Number(lowStockAlert) })
       } else {
-        await api.createIngredient({ name, unit, low_stock_alert: Number(lowStockAlert) })
+        await api.createIngredient({ name, unit, low_stock_alert: Number(lowStockAlert), house_stock: Number(startingHouseStock || 0) })
       }
       onClose()
     } catch (err) { setError(err.message || 'Save failed') }
@@ -333,7 +352,7 @@ function IngredientEditor({ ingredient, onClose }) {
         <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Beef Patty"
           style={{ width: '100%', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-strong)', fontSize: 14, marginBottom: 16, fontWeight: 500 }} />
 
-        <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 16, marginBottom: ingredient ? 24 : 16 }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Unit</label>
             <input value={unit} onChange={e => setUnit(e.target.value)} placeholder="e.g. kg, pcs"
@@ -345,6 +364,14 @@ function IngredientEditor({ ingredient, onClose }) {
               style={{ width: '100%', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-strong)', fontSize: 14, fontWeight: 500 }} />
           </div>
         </div>
+
+        {!ingredient && (
+          <>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Starting House Stock</label>
+            <input type="number" value={startingHouseStock} onChange={e => setStartingHouseStock(e.target.value)} placeholder="0"
+              style={{ width: '100%', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-strong)', fontSize: 14, marginBottom: 24, fontWeight: 500 }} />
+          </>
+        )}
 
         {error && (
           <div style={{ color: 'var(--red)', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', borderRadius: 'var(--radius-md)', padding: '10px 12px', marginBottom: 16, fontSize: 13, fontWeight: 700 }}>
@@ -465,9 +492,9 @@ export default function InventoryPanel() {
   const [ingredients, setIngredients] = useState([])
   const [products, setProducts] = useState([])
   const [view, setView] = useState('stock') // 'stock' | 'products' | 'recipes'
-  const [restocking, setRestocking] = useState(null)
-  const [restockQty, setRestockQty] = useState('')
-  const [restockNote, setRestockNote] = useState('')
+  const [stockAction, setStockAction] = useState(null)
+  const [stockQty, setStockQty] = useState('')
+  const [stockNote, setStockNote] = useState('')
   const [editingRecipe, setEditingRecipe] = useState(null)
   const [editingCombo, setEditingCombo] = useState(null)
   const [editingProduct, setEditingProduct] = useState(null)
@@ -528,15 +555,32 @@ export default function InventoryPanel() {
     init()
   }, [])
 
-  const handleRestock = async () => {
-    const qty = parseFloat(restockQty)
+  const closeStockAction = () => {
+    setStockAction(null)
+    setStockQty('')
+    setStockNote('')
+  }
+
+  const handleStockAction = async () => {
+    const qty = parseFloat(stockQty)
     if (!qty || qty <= 0) return
     setSaving(true)
     try {
-      await api.restock(restocking.id, qty, restockNote || 'manual restock')
-      setRestocking(null); setRestockQty(''); setRestockNote('')
+      if (stockAction.type === 'receive') {
+        await api.receiveHouseStock(stockAction.ingredient.id, qty, stockNote || 'received to house stock')
+      } else {
+        await api.transferToStore(stockAction.ingredient.id, qty, stockNote || 'house to store transfer')
+      }
+      closeStockAction()
       await loadIngredients()
-    } catch (err) { setMessageModal({ title: 'Restock failed', message: err.message || 'Unable to add stock right now.' }) }
+    } catch (err) {
+      setMessageModal({
+        title: stockAction.type === 'receive' ? 'Receive failed' : 'Transfer failed',
+        message: err.error === 'INSUFFICIENT_HOUSE_STOCK'
+          ? 'House stock is not enough for that transfer.'
+          : err.message || 'Unable to update stock right now.'
+      })
+    }
     finally { setSaving(false) }
   }
 
@@ -625,7 +669,14 @@ export default function InventoryPanel() {
               </div>
             ) : (
               ingredients.sort((a, b) => a.is_low === b.is_low ? a.name.localeCompare(b.name) : a.is_low ? -1 : 1).map(ing => (
-                <IngredientRow key={ing.id} ing={ing} onRestock={setRestocking} onEdit={(i) => { setEditingIngredient(i); setShowIngredientModal(true) }} onDelete={handleDeleteIngredient} />
+                <IngredientRow
+                  key={ing.id}
+                  ing={ing}
+                  onReceiveHouse={(ingredient) => setStockAction({ type: 'receive', ingredient })}
+                  onTransferStore={(ingredient) => setStockAction({ type: 'transfer', ingredient })}
+                  onEdit={(i) => { setEditingIngredient(i); setShowIngredientModal(true) }}
+                  onDelete={handleDeleteIngredient}
+                />
               ))
             )}
           </div>
@@ -716,34 +767,48 @@ export default function InventoryPanel() {
         )}
       </div>
 
-      {/* Restock modal */}
-      {restocking && (
+      {/* Stock movement modal */}
+      {stockAction && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(246,247,251,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}>
           <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-xl)', padding: 32, width: 360, boxSizing: 'border-box', overflow: 'hidden', boxShadow: 'var(--shadow-lg)' }}>
-            <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--text-strong)', marginBottom: 8, letterSpacing: -0.5 }}>Restock {restocking.name}</div>
+            <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--text-strong)', marginBottom: 8, letterSpacing: -0.5 }}>
+              {stockAction.type === 'receive' ? 'Receive House Stock' : 'Move Stock to Store'}
+            </div>
             <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24, fontWeight: 500 }}>
-              Current stock: <span style={{ color: restocking.is_low ? 'var(--red)' : 'var(--green)', fontWeight: 700 }}>{Number(restocking.current_stock).toFixed(0)} {restocking.unit}</span>
+              <span style={{ color: 'var(--text-strong)', fontWeight: 800 }}>{stockAction.ingredient.name}</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+                <div style={{ background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: 10 }}>
+                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 900 }}>Store</div>
+                  <div style={{ color: stockAction.ingredient.is_low ? 'var(--red)' : 'var(--green)', fontWeight: 900 }}>{Number(stockAction.ingredient.current_stock || 0).toFixed(0)} {stockAction.ingredient.unit}</div>
+                </div>
+                <div style={{ background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: 10 }}>
+                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 900 }}>House</div>
+                  <div style={{ color: 'var(--text-strong)', fontWeight: 900 }}>{Number(stockAction.ingredient.house_stock || 0).toFixed(0)} {stockAction.ingredient.unit}</div>
+                </div>
+              </div>
             </div>
 
-            <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Quantity to Add</label>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              {stockAction.type === 'receive' ? 'Quantity received at house' : 'Quantity to move into store'}
+            </label>
             <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 16 }}>
-              <input type="number" value={restockQty} onChange={e => setRestockQty(e.target.value)}
+              <input type="number" value={stockQty} onChange={e => setStockQty(e.target.value)}
                 placeholder="0" autoFocus
                 style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--text-strong)', fontSize: 24, fontWeight: 700, outline: 'none' }} />
-              <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>{restocking.unit}</span>
+              <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>{stockAction.ingredient.unit}</span>
             </div>
 
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Remarks</label>
-            <input value={restockNote} onChange={e => setRestockNote(e.target.value)}
-              placeholder="e.g. Supplier delivery"
+            <input value={stockNote} onChange={e => setStockNote(e.target.value)}
+              placeholder={stockAction.type === 'receive' ? 'e.g. Supplier delivery at house' : 'e.g. Delivered to store freezer'}
               style={{ width: '100%', background: 'var(--bg-image)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '12px 16px', color: 'var(--text-strong)', fontSize: 14, marginBottom: 24, fontWeight: 500 }} />
 
             <div style={{ display: 'flex', gap: 12 }}>
-              <button onClick={() => { setRestocking(null); setRestockQty(''); setRestockNote('') }}
+              <button onClick={closeStockAction}
                 style={{ flex: 1, padding: '14px', background: 'var(--bg-image)', color: 'var(--text-muted)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 600 }}>Cancel</button>
-              <button onClick={handleRestock} disabled={saving || !restockQty}
-                style={{ flex: 2, padding: '14px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 700, opacity: (!restockQty || saving) ? 0.6 : 1 }}>
-                {saving ? 'Saving...' : `Add Stock`}
+              <button onClick={handleStockAction} disabled={saving || !stockQty}
+                style={{ flex: 2, padding: '14px', background: 'var(--text-strong)', color: 'var(--bg-panel)', borderRadius: 'var(--radius-md)', fontSize: 14, fontWeight: 700, opacity: (!stockQty || saving) ? 0.6 : 1 }}>
+                {saving ? 'Saving...' : stockAction.type === 'receive' ? 'Receive Stock' : 'Move to Store'}
               </button>
             </div>
           </div>

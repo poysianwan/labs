@@ -8,6 +8,7 @@ const ingredientSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
   unit: z.string().min(1, 'Unit is required').max(30),
   current_stock: z.number().optional(),
+  house_stock: z.number().nonnegative().optional(),
   low_stock_alert: z.number().nonnegative().optional()
 })
 
@@ -50,12 +51,12 @@ router.get('/', authenticate, async (req, res) => {
 
 // POST /api/ingredients — create ingredient
 router.post('/', authenticate, requireAdmin, validate(ingredientSchema), async (req, res) => {
-  const { name, unit, current_stock = 0, low_stock_alert = 10 } = req.body
+  const { name, unit, current_stock = 0, house_stock = 0, low_stock_alert = 10 } = req.body
   try {
     const { rows } = await query(
-      `INSERT INTO ingredients (name, unit, current_stock, low_stock_alert)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [name, unit, current_stock, low_stock_alert]
+      `INSERT INTO ingredients (name, unit, current_stock, house_stock, low_stock_alert)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name, unit, current_stock, house_stock, low_stock_alert]
     )
     await query(
       `INSERT INTO audit_logs (user_id, action, table_name, record_id, new_value)
@@ -141,6 +142,91 @@ router.post('/:id/restock', authenticate, validate(restockSchema), async (req, r
     res.json({ ingredient_id: req.params.id, new_stock: result.current_stock })
   } catch (err) {
     if (err.message === 'NOT_FOUND') return res.status(404).json({ error: 'NOT_FOUND' })
+    res.status(500).json({ error: 'SERVER_ERROR' })
+  }
+})
+
+// POST /api/ingredients/:id/receive-house
+router.post('/:id/receive-house', authenticate, requireAdmin, validate(restockSchema), async (req, res) => {
+  const { quantity, note = 'received to house stock' } = req.body
+
+  try {
+    const result = await transaction(async (client) => {
+      const { rows } = await client.query(
+        `UPDATE ingredients SET house_stock = house_stock + $1
+         WHERE id = $2 AND deleted_at IS NULL RETURNING id, name, unit, current_stock, house_stock`,
+        [quantity, req.params.id]
+      )
+      if (!rows.length) throw Object.assign(new Error('NOT_FOUND'), { status: 404 })
+
+      await client.query(
+        `INSERT INTO stock_movements (ingredient_id, movement_type, quantity, note)
+         VALUES ($1, 'receive_house', $2, $3)`,
+        [req.params.id, quantity, note]
+      )
+
+      await client.query(
+        `INSERT INTO audit_logs (user_id, action, table_name, record_id, new_value)
+         VALUES ($1, 'receive_house_stock', 'ingredients', $2, $3)`,
+        [req.user.id, req.params.id, JSON.stringify({ name: rows[0].name, unit: rows[0].unit, quantity, note, house_stock: rows[0].house_stock })]
+      )
+
+      return rows[0]
+    })
+
+    res.json({ ingredient_id: req.params.id, house_stock: result.house_stock, store_stock: result.current_stock })
+  } catch (err) {
+    if (err.message === 'NOT_FOUND') return res.status(404).json({ error: 'NOT_FOUND' })
+    res.status(500).json({ error: 'SERVER_ERROR' })
+  }
+})
+
+// POST /api/ingredients/:id/transfer-to-store
+router.post('/:id/transfer-to-store', authenticate, requireAdmin, validate(restockSchema), async (req, res) => {
+  const { quantity, note = 'house to store transfer' } = req.body
+
+  try {
+    const result = await transaction(async (client) => {
+      const { rows: beforeRows } = await client.query(
+        `SELECT id, name, unit, current_stock, house_stock
+         FROM ingredients WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [req.params.id]
+      )
+      if (!beforeRows.length) throw Object.assign(new Error('NOT_FOUND'), { status: 404 })
+      const before = beforeRows[0]
+      if (Number(before.house_stock) < quantity) throw Object.assign(new Error('INSUFFICIENT_HOUSE_STOCK'), { status: 400 })
+
+      const { rows } = await client.query(
+        `UPDATE ingredients
+         SET house_stock = house_stock - $1, current_stock = current_stock + $1
+         WHERE id = $2 RETURNING id, name, unit, current_stock, house_stock`,
+        [quantity, req.params.id]
+      )
+
+      await client.query(
+        `INSERT INTO stock_movements (ingredient_id, movement_type, quantity, note)
+         VALUES ($1, 'transfer_to_store', $2, $3)`,
+        [req.params.id, quantity, note]
+      )
+
+      await client.query(
+        `INSERT INTO audit_logs (user_id, action, table_name, record_id, old_value, new_value)
+         VALUES ($1, 'transfer_house_to_store', 'ingredients', $2, $3, $4)`,
+        [
+          req.user.id,
+          req.params.id,
+          JSON.stringify({ name: before.name, unit: before.unit, current_stock: before.current_stock, house_stock: before.house_stock }),
+          JSON.stringify({ name: rows[0].name, unit: rows[0].unit, quantity, note, current_stock: rows[0].current_stock, house_stock: rows[0].house_stock })
+        ]
+      )
+
+      return rows[0]
+    })
+
+    res.json({ ingredient_id: req.params.id, store_stock: result.current_stock, house_stock: result.house_stock })
+  } catch (err) {
+    if (err.message === 'NOT_FOUND') return res.status(404).json({ error: 'NOT_FOUND' })
+    if (err.message === 'INSUFFICIENT_HOUSE_STOCK') return res.status(400).json({ error: 'INSUFFICIENT_HOUSE_STOCK' })
     res.status(500).json({ error: 'SERVER_ERROR' })
   }
 })

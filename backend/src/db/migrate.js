@@ -50,6 +50,7 @@ const migrations = [
     name VARCHAR(150) NOT NULL,
     unit VARCHAR(30) NOT NULL,
     current_stock DECIMAL(10,3) DEFAULT 0,
+    house_stock DECIMAL(10,3) DEFAULT 0,
     low_stock_alert DECIMAL(10,3) DEFAULT 10,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
@@ -105,7 +106,7 @@ const migrations = [
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ingredient_id UUID NOT NULL REFERENCES ingredients(id),
     order_id UUID REFERENCES orders(id),
-    movement_type VARCHAR(20) NOT NULL CHECK (movement_type IN ('sale','restock','adjustment','void_restore')),
+    movement_type VARCHAR(20) NOT NULL CHECK (movement_type IN ('sale','restock','adjustment','void_restore','receive_house','transfer_to_store')),
     quantity DECIMAL(10,3) NOT NULL,
     note VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -184,7 +185,13 @@ const migrations = [
   )`,
 
   // 021 - editable product menu descriptions
-  `ALTER TABLE products ADD COLUMN IF NOT EXISTS description VARCHAR(255)`
+  `ALTER TABLE products ADD COLUMN IF NOT EXISTS description VARCHAR(255)`,
+
+  // 022 - separate house stock from store stock
+  `ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS house_stock DECIMAL(10,3) DEFAULT 0`,
+  `ALTER TABLE stock_movements DROP CONSTRAINT IF EXISTS stock_movements_movement_type_check`,
+  `ALTER TABLE stock_movements ADD CONSTRAINT stock_movements_movement_type_check
+    CHECK (movement_type IN ('sale','restock','adjustment','void_restore','receive_house','transfer_to_store'))`
 ]
 
 const seed = async () => {
