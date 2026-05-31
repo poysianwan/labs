@@ -721,16 +721,16 @@ function ProductCard({ product, cartQty = 0, onAdd, onReduce }) {
             Unavailable
           </div>
         ) : cartQty > 0 ? (
-          <div onClick={e => e.stopPropagation()} style={{ 
+          <div className="product-card-stepper" onClick={e => e.stopPropagation()} style={{ 
             display: 'flex', alignItems: 'center', background: 'var(--dark)', 
             borderRadius: 'var(--radius-pill)', overflow: 'hidden', 
             boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
           }}>
-            <button onClick={onReduce} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>
+            <button className="product-card-stepper-button" onClick={onReduce} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>
               <IconMinus size={14} />
             </button>
-            <div style={{ width: 24, textAlign: 'center', color: 'white', fontSize: 13, fontWeight: 900 }}>{cartQty}</div>
-            <button onClick={onAdd} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer' }}>
+            <div className="product-card-stepper-value" style={{ width: 24, textAlign: 'center', color: 'white', fontSize: 13, fontWeight: 900 }}>{cartQty}</div>
+            <button className="product-card-stepper-button" onClick={onAdd} style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer' }}>
               <IconPlus size={14} />
             </button>
           </div>

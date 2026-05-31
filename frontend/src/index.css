@@ -1810,6 +1810,10 @@ input[type="number"] {
   border: 1px solid var(--border-light);
   font-size: 10px;
 }
+.product-card-stepper-button,
+.product-card-stepper-value {
+  flex: 0 0 auto;
+}
 .pos-mobile-menu-shell {
   display: none;
 }
@@ -2078,7 +2082,7 @@ input[type="number"] {
   }
 
   .product-card {
-    min-height: 224px !important;
+    min-height: 238px !important;
     padding: 0 !important;
     border: none !important;
     border-radius: 0 !important;
@@ -2162,9 +2166,11 @@ input[type="number"] {
 
   .product-card-footer {
     order: 3;
+    flex-direction: column;
     justify-content: center !important;
-    gap: 8px;
-    margin-top: 8px !important;
+    align-items: center !important;
+    gap: 9px;
+    margin-top: 9px !important;
   }
 
   .product-card-price {
@@ -2182,13 +2188,35 @@ input[type="number"] {
     border-color: var(--text-strong) !important;
   }
 
-  .product-card-footer > div[style*="var(--dark)"] {
-    position: absolute;
-    right: 2px;
-    bottom: 2px;
+  .product-card-stepper {
+    width: min(100%, 104px) !important;
+    height: 38px !important;
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) 34px;
+    background: #111 !important;
+    border-radius: 999px !important;
+    box-shadow: 0 6px 16px rgba(17, 17, 17, 0.16) !important;
+  }
+
+  .product-card-stepper-button {
+    width: 34px !important;
+    height: 38px !important;
+    color: rgba(255,255,255,0.78) !important;
+  }
+
+  .product-card-stepper-button:last-child {
+    color: white !important;
+  }
+
+  .product-card-stepper-value {
     width: auto !important;
-    min-width: 78px;
-    height: 34px !important;
+    min-width: 0;
+    color: white !important;
+    font-size: 14px !important;
+    font-weight: 950 !important;
+    line-height: 38px;
+    border-left: 1px solid rgba(255,255,255,0.12);
+    border-right: 1px solid rgba(255,255,255,0.12);
   }
 
   .kiosk-banner {
@@ -2233,7 +2261,7 @@ input[type="number"] {
   }
 
   .product-card {
-    min-height: 210px !important;
+    min-height: 226px !important;
   }
 
   .product-card-visual {
