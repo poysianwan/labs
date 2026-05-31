@@ -735,7 +735,7 @@ function ProductCard({ product, cartQty = 0, onAdd, onReduce }) {
             </button>
           </div>
         ) : (
-          <div style={{ 
+          <div className="product-card-add-button" style={{ 
             width: 36, height: 36, borderRadius: '50%', background: 'var(--bg-app)', 
             border: '1px solid var(--border-light)', display: 'flex', 
             alignItems: 'center', justifyContent: 'center', color: 'var(--text-strong)', 

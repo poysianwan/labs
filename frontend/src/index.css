@@ -2180,7 +2180,7 @@ input[type="number"] {
     letter-spacing: 0 !important;
   }
 
-  .product-card-footer > div:last-child {
+  .product-card-add-button {
     width: 30px !important;
     height: 30px !important;
     background: var(--text-strong) !important;
