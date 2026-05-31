@@ -126,6 +126,20 @@ export default function POSScreen() {
     if (searchQuery && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
     return true
   })
+  const visibleCategories = categories
+    .map(category => ({
+      ...category,
+      products: products.filter(product => {
+        if (product.deleted_at) return false
+        if (product.category_id !== category.id) return false
+        if (searchQuery && !product.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
+        return true
+      })
+    }))
+    .filter(category => category.products.length > 0)
+  const mobileSections = activeCategory
+    ? visibleCategories.filter(category => category.id === activeCategory)
+    : visibleCategories
 
   const renderSessionControl = (className = '') => (
     <div className={`pos-session-wrap ${className}`} style={{ position: 'relative', flexShrink: 0, marginRight: 8 }}>
@@ -361,7 +375,7 @@ export default function POSScreen() {
               </div>
 
               {/* Minimalist Glass Category Bar */}
-              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, width: '100%', WebkitOverflowScrolling: 'touch' }} className="hide-scroll">
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, width: '100%', WebkitOverflowScrolling: 'touch' }} className="hide-scroll pos-category-pills">
                 <button
                   onClick={() => setActiveCategory(null)}
                   style={{
@@ -395,6 +409,49 @@ export default function POSScreen() {
             </div>
 
             {/* Product Grid */}
+            <div className="pos-mobile-menu-shell">
+              <aside className="pos-mobile-category-rail hide-scroll">
+                <button
+                  onClick={() => setActiveCategory(null)}
+                  className={!activeCategory ? 'active' : ''}
+                  type="button"
+                >
+                  <IconGrid size={24} />
+                  <span>All</span>
+                </button>
+                {categories.map(cat => {
+                  const firstProduct = products.find(product => product.category_id === cat.id && !product.deleted_at)
+                  const { Icon } = getProductDetail(firstProduct?.name || cat.name)
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveCategory(cat.id)}
+                      className={activeCategory === cat.id ? 'active' : ''}
+                      type="button"
+                    >
+                      <Icon size={27} sw={1.6} />
+                      <span>{cat.name}</span>
+                    </button>
+                  )
+                })}
+              </aside>
+              <div className="pos-mobile-products hide-scroll">
+                {mobileSections.map(section => (
+                  <section key={section.id} className="pos-mobile-product-section">
+                    <h2>{section.name}</h2>
+                    <div className="pos-mobile-product-grid">
+                      {section.products.map(product => {
+                        const cartQty = items.find(i => i.product_id === product.id)?.quantity || 0
+                        return <ProductCard key={product.id} product={product} cartQty={cartQty} onAdd={() => addItem(product)} onReduce={() => updateQuantity(product.id, cartQty - 1)} />
+                      })}
+                    </div>
+                  </section>
+                ))}
+                {mobileSections.length === 0 && (
+                  <div className="pos-mobile-empty">No products available</div>
+                )}
+              </div>
+            </div>
             <div className="pos-product-grid" style={{ flex: 1, overflowY: 'auto', padding: '8px 32px 40px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20, alignContent: 'start' }}>
               {filteredProducts.map(product => {
                 const cartQty = items.find(i => i.product_id === product.id)?.quantity || 0
@@ -620,13 +677,17 @@ function ProductCard({ product, cartQty = 0, onAdd, onReduce }) {
       )}
 
       {/* Symmetric Icon Container */}
-      <div style={{ 
+      <div className="product-card-visual" style={{ 
         width: '100%', height: 100, background: 'var(--bg-image)', 
         borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', 
         justifyContent: 'center', marginBottom: 20, position: 'relative',
         transition: 'all 0.3s'
       }}>
-        <Icon size={44} color="var(--text-muted)" sw={1.5} />
+        {product.image_url ? (
+          <img src={product.image_url} alt="" className="product-card-image" />
+        ) : (
+          <Icon size={44} color="var(--text-muted)" sw={1.5} />
+        )}
         {cartQty > 0 && (
           <div style={{ 
             position: 'absolute', top: 10, right: 10, background: 'var(--text-strong)', 
@@ -641,11 +702,11 @@ function ProductCard({ product, cartQty = 0, onAdd, onReduce }) {
         )}
       </div>
 
-      <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-strong)', lineHeight: 1.2, marginBottom: 6, letterSpacing: -0.3 }}>{product.name}</div>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500, lineHeight: 1.4, flex: 1, minHeight: 36 }}>{displayDescription}</div>
+      <div className="product-card-name" style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-strong)', lineHeight: 1.2, marginBottom: 6, letterSpacing: -0.3 }}>{product.name}</div>
+      <div className="product-card-desc" style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500, lineHeight: 1.4, flex: 1, minHeight: 36 }}>{displayDescription}</div>
       
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 20 }}>
-        <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-strong)', letterSpacing: -0.5 }}>
+      <div className="product-card-footer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: 20 }}>
+        <div className="product-card-price" style={{ fontSize: 18, fontWeight: 900, color: 'var(--text-strong)', letterSpacing: -0.5 }}>
           ₱{parseFloat(product.price).toFixed(0)}
         </div>
         
